@@ -3,7 +3,6 @@ from pathlib import Path
 from PySide6.QtCore import QSize
 from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import (
-    QComboBox,
     QFrame,
     QGridLayout,
     QHBoxLayout,
@@ -15,12 +14,30 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from app.ui.animated_combo import AnimatedComboBox
 from app.ui.dataset_card import DatasetCard
 from app.ui.side_panel import SidePanel
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
-FILTER_PLACEHOLDERS = ["Todos os temas", "Todas as fontes", "Todos os formatos", "Última atualização"]
+# Cada filtro: (texto padrão, opções). O texto padrão é sempre o primeiro item.
+FILTERS = [
+    (
+        "Todos os temas",
+        [
+            "EDUCAÇÃO",
+            "MEIO AMBIENTE",
+            "POPULAÇÃO",
+            "SANEAMENTO",
+            "SAÚDE",
+            "SEGURANÇA",
+            "SOCIOECONOMICOS",
+        ],
+    ),
+    ("Todas as fontes", []),
+    ("Todos os formatos", []),
+    ("Última atualização", []),
+]
 
 CATALOGO_ITEMS = [
     {
@@ -81,10 +98,11 @@ class CatalogoPage(QWidget):
         filters_layout.setSpacing(8)
 
         self.filter_combos = []
-        for placeholder in FILTER_PLACEHOLDERS:
-            combo = QComboBox()
+        for placeholder, options in FILTERS:
+            combo = AnimatedComboBox()
             combo.setObjectName("filterCombo")
             combo.addItem(placeholder)
+            combo.addItems(options)
             filters_layout.addWidget(combo, 1)
             self.filter_combos.append(combo)
 

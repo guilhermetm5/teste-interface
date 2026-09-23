@@ -1,3 +1,5 @@
+from pathlib import Path
+
 from PySide6.QtCore import QEvent
 from PySide6.QtWidgets import (
     QHBoxLayout,
@@ -74,8 +76,18 @@ QComboBox#filterCombo {
 QComboBox#filterCombo:hover {
     border: 1px solid #4a5868;
 }
+QComboBox#filterCombo::drop-down {
+    border: none;
+    background: transparent;
+    width: 24px;
+}
+QComboBox#filterCombo::down-arrow {
+    image: url(ARROW_DOWN_PATH);
+    width: 12px;
+    height: 12px;
+}
 QComboBox#filterCombo QAbstractItemView {
-    background-color: #1a2027;
+    background-color: #212830;
     color: #d6dbe0;
     selection-background-color: #34404d;
     border: 1px solid #3a4552;
@@ -233,7 +245,10 @@ class MainWindow(QMainWindow):
         super().__init__()
         self.setWindowTitle("Dados do Amazonas")
         self.resize(900, 600)
-        self.setStyleSheet(STYLESHEET)
+        arrow_down = Path(__file__).resolve().parents[2] / "arrow_down.png"
+        self.setStyleSheet(
+            STYLESHEET.replace("ARROW_DOWN_PATH", arrow_down.as_posix())
+        )
 
         central = QWidget()
         central.setObjectName("content")
