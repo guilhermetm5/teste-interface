@@ -3,12 +3,14 @@ from PySide6.QtWidgets import (
     QLabel,
     QMainWindow,
     QPushButton,
+    QStackedWidget,
     QVBoxLayout,
     QWidget,
 )
 
 from app.core.updater import UpdateCheckWorker
 from app.core.version import get_local_commit, pull_latest, restart_app
+from app.ui.catalogo_page import CatalogoPage
 from app.ui.sidebar import Sidebar
 
 STYLESHEET = """
@@ -29,13 +31,48 @@ QPushButton#sidebarButton {
 QPushButton#sidebarButton:hover {
     background-color: #2b3440;
 }
+QPushButton#sidebarButton:pressed {
+    background-color: #34404d;
+}
 QPushButton#sidebarButton:checked {
     background-color: #34404d;
     color: #ffffff;
 }
+QPushButton#sidebarButton:checked:hover {
+    background-color: #3c4956;
+}
+QPushButton#sidebarButton:focus {
+    outline: none;
+}
 QLabel#contentLabel {
     color: #d6dbe0;
     font-size: 16px;
+}
+QLabel#pageTitle {
+    color: #ffffff;
+    font-size: 18px;
+    font-weight: bold;
+}
+QFrame#separator {
+    background-color: #3a4552;
+    border: none;
+}
+QListWidget#catalogList {
+    background-color: transparent;
+    border: none;
+    color: #d6dbe0;
+    outline: none;
+}
+QListWidget#catalogList::item {
+    padding: 8px 12px;
+    border-radius: 4px;
+}
+QListWidget#catalogList::item:hover {
+    background-color: #2b3440;
+}
+QListWidget#catalogList::item:selected {
+    background-color: #34404d;
+    color: #ffffff;
 }
 QWidget#updateBanner {
     background-color: #3a6ea5;
@@ -104,17 +141,25 @@ class MainWindow(QMainWindow):
         self.sidebar.item_selected.connect(self._on_item_selected)
         body_layout.addWidget(self.sidebar)
 
-        self.content_label = QLabel("Selecione um item na sidebar")
+        self.pages = QStackedWidget()
+        self.content_label = QLabel()
         self.content_label.setObjectName("contentLabel")
-        body_layout.addWidget(self.content_label)
-        body_layout.addStretch()
+        self._catalogo_page = CatalogoPage()
+        self.pages.addWidget(self._catalogo_page)
+        self.pages.addWidget(self.content_label)
+        self.pages.setCurrentWidget(self._catalogo_page)
+        body_layout.addWidget(self.pages, 1)
 
         self._local_commit = get_local_commit()
         self._update_worker: UpdateCheckWorker | None = None
         self.check_for_update()
 
     def _on_item_selected(self, item_id: str) -> None:
+        if item_id == "catalogo":
+            self.pages.setCurrentWidget(self._catalogo_page)
+            return
         self.content_label.setText(f"Você selecionou: {item_id}")
+        self.pages.setCurrentWidget(self.content_label)
 
     def check_for_update(self) -> None:
         self._update_worker = UpdateCheckWorker()
