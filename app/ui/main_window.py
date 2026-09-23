@@ -8,7 +8,7 @@ from PySide6.QtWidgets import (
 )
 
 from app.core.updater import UpdateCheckWorker
-from app.core.version import get_local_commit
+from app.core.version import get_local_commit, pull_latest, restart_app
 from app.ui.sidebar import Sidebar
 
 STYLESHEET = """
@@ -37,10 +37,26 @@ QLabel#contentLabel {
     color: #d6dbe0;
     font-size: 16px;
 }
-QLabel#updateBanner {
+QWidget#updateBanner {
     background-color: #3a6ea5;
+}
+QLabel#updateBannerLabel {
     color: #ffffff;
-    padding: 6px 10px;
+}
+QPushButton#updateBannerButton {
+    background-color: #ffffff;
+    color: #3a6ea5;
+    border: none;
+    border-radius: 3px;
+    padding: 4px 10px;
+    font-weight: bold;
+}
+QPushButton#updateBannerButton:hover {
+    background-color: #e0e8f0;
+}
+QPushButton#updateBannerButton:disabled {
+    background-color: #c9d6e3;
+    color: #6d7a87;
 }
 """
 
@@ -60,9 +76,22 @@ class MainWindow(QMainWindow):
         root_layout.setContentsMargins(0, 0, 0, 0)
         root_layout.setSpacing(0)
 
-        self.update_banner = QLabel()
+        self.update_banner = QWidget()
         self.update_banner.setObjectName("updateBanner")
         self.update_banner.setVisible(False)
+        banner_layout = QHBoxLayout(self.update_banner)
+        banner_layout.setContentsMargins(10, 6, 10, 6)
+
+        self.update_banner_label = QLabel()
+        self.update_banner_label.setObjectName("updateBannerLabel")
+        banner_layout.addWidget(self.update_banner_label)
+        banner_layout.addStretch()
+
+        self.update_banner_button = QPushButton("Atualizar agora")
+        self.update_banner_button.setObjectName("updateBannerButton")
+        self.update_banner_button.clicked.connect(self._on_update_clicked)
+        banner_layout.addWidget(self.update_banner_button)
+
         root_layout.addWidget(self.update_banner)
 
         body = QWidget()
@@ -95,13 +124,28 @@ class MainWindow(QMainWindow):
 
     def _on_update_check_ok(self, info: dict) -> None:
         remote_sha = info["sha"]
+        print(f"[updater] local={self._local_commit!r} remote={remote_sha!r}")
         if self._local_commit and remote_sha == self._local_commit:
             return
-        self.update_banner.setText(
+        self.update_banner_label.setText(
             f"Nova atualização disponível: {info['message']} ({remote_sha[:7]})"
         )
         self.update_banner.setVisible(True)
 
     def _on_update_check_error(self, message: str) -> None:
-        # Falha silenciosa (ex: sem internet) não deve atrapalhar o uso do app.
-        pass
+        print(f"[updater] falha ao checar atualização: {message}")
+
+    def _on_update_clicked(self) -> None:
+        self.update_banner_button.setEnabled(False)
+        self.update_banner_button.setText("Atualizando...")
+
+        success, message = pull_latest()
+        print(f"[updater] pull_latest -> success={success} message={message!r}")
+
+        if not success:
+            self.update_banner_label.setText(f"Falha ao atualizar: {message}")
+            self.update_banner_button.setEnabled(True)
+            self.update_banner_button.setText("Atualizar agora")
+            return
+
+        restart_app()

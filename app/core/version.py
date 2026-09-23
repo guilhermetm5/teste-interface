@@ -1,5 +1,7 @@
 import json
+import os
 import subprocess
+import sys
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -32,3 +34,31 @@ def get_local_commit() -> str | None:
             pass
 
     return None
+
+
+def pull_latest() -> tuple[bool, str]:
+    """Baixa a versão mais nova via `git pull` (requer clone git)."""
+    git_dir = PROJECT_ROOT / ".git"
+    if not git_dir.exists():
+        return False, "Pasta atual não é um clone git; não é possível atualizar automaticamente."
+
+    try:
+        result = subprocess.run(
+            ["git", "pull", "--ff-only"],
+            cwd=PROJECT_ROOT,
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+    except (OSError, subprocess.SubprocessError) as exc:
+        return False, str(exc)
+
+    if result.returncode != 0:
+        return False, result.stderr.strip() or result.stdout.strip()
+
+    return True, result.stdout.strip()
+
+
+def restart_app() -> None:
+    """Encerra e reabre o processo atual, para carregar o código atualizado."""
+    os.execv(sys.executable, [sys.executable, *sys.argv])
