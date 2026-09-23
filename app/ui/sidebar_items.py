@@ -3,4 +3,5 @@
 SIDEBAR_ITEMS = [
     {"id": "home", "label": "Home"},
     {"id": "settings", "label": "Configurações"},
+    {"id": "about", "label": "Sobre"}
 ]
