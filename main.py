@@ -10,7 +10,7 @@ from app.ui.main_window import MainWindow
 def main() -> None:
     app = QApplication(sys.argv)
     app.setStyle("Fusion")
-    app.setWindowIcon(QIcon(str(Path(__file__).resolve().parent / "logo.png")))
+    app.setWindowIcon(QIcon(str(Path(__file__).resolve().parent / "dataset.png")))
     window = MainWindow()
     window.show()
     sys.exit(app.exec())

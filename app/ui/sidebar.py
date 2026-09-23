@@ -1,7 +1,12 @@
-from PySide6.QtCore import Signal
+from pathlib import Path
+
+from PySide6.QtCore import QSize, Signal
+from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import QButtonGroup, QFrame, QPushButton, QVBoxLayout
 
 from app.ui.sidebar_items import SIDEBAR_ITEMS
+
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
 
 class Sidebar(QFrame):
@@ -23,6 +28,9 @@ class Sidebar(QFrame):
             button = QPushButton(item["label"])
             button.setObjectName("sidebarButton")
             button.setCheckable(True)
+            if "icon" in item:
+                button.setIcon(QIcon(str(PROJECT_ROOT / item["icon"])))
+                button.setIconSize(QSize(18, 18))
             button.clicked.connect(
                 lambda _checked, item_id=item["id"]: self.item_selected.emit(item_id)
             )

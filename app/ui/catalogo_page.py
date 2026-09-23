@@ -1,6 +1,6 @@
 from PySide6.QtWidgets import QFrame, QLabel, QListWidget, QVBoxLayout, QWidget
 
-CATALOGO_ITEMS = ["IBGE"]
+CATALOGO_ITEMS = ["População dos municípios"]
 
 
 class CatalogoPage(QWidget):
@@ -10,7 +10,7 @@ class CatalogoPage(QWidget):
         layout.setContentsMargins(16, 16, 16, 16)
         layout.setSpacing(8)
 
-        title = QLabel("Catálogo")
+        title = QLabel("Dados do Amazonas")
         title.setObjectName("pageTitle")
         layout.addWidget(title)
 
