@@ -25,7 +25,7 @@ class Sidebar(QFrame):
         self._button_group.setExclusive(True)
 
         for index, item in enumerate(SIDEBAR_ITEMS):
-            button = QPushButton(item["label"])
+            button = QPushButton("  " + item["label"])
             button.setObjectName("sidebarButton")
             button.setCheckable(True)
             if "icon" in item:

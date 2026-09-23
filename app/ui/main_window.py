@@ -53,6 +53,46 @@ QLabel#pageTitle {
     font-size: 18px;
     font-weight: bold;
 }
+QLineEdit#searchInput {
+    background-color: #1a2027;
+    color: #d6dbe0;
+    border: 1px solid #3a4552;
+    border-radius: 4px;
+    padding: 8px 12px;
+}
+QLineEdit#searchInput:focus {
+    border: 1px solid #3a6ea5;
+}
+QComboBox#filterCombo {
+    background-color: #1a2027;
+    color: #d6dbe0;
+    border: 1px solid #3a4552;
+    border-radius: 4px;
+    padding: 8px 12px;
+}
+QComboBox#filterCombo:hover {
+    border: 1px solid #4a5868;
+}
+QComboBox#filterCombo QAbstractItemView {
+    background-color: #1a2027;
+    color: #d6dbe0;
+    selection-background-color: #34404d;
+    border: 1px solid #3a4552;
+    outline: none;
+}
+QPushButton#filterButton {
+    background-color: #1a2027;
+    border: 1px solid #3a4552;
+    border-radius: 4px;
+    min-width: 36px;
+    padding: 8px 12px;
+}
+QPushButton#filterButton:hover {
+    background-color: #2b3440;
+}
+QPushButton#filterButton:pressed {
+    background-color: #34404d;
+}
 QFrame#separator {
     background-color: #3a4552;
     border: none;
