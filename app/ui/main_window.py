@@ -64,7 +64,7 @@ QPushButton#updateBannerButton:disabled {
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("Teste Interface")
+        self.setWindowTitle("Laboratório de Dados - Interface")
         self.resize(900, 600)
         self.setStyleSheet(STYLESHEET)
 
