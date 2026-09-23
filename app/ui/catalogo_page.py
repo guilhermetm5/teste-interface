@@ -14,6 +14,11 @@ class CatalogoPage(QWidget):
         title.setObjectName("pageTitle")
         layout.addWidget(title)
 
+        subtitle = QLabel("Conecte-se as principais fontes de dados do estado, encontre o que precisae gere seu arquivo CSV de forma simples e rapida.")
+        subtitle.setObjectName("pageSubtitle")
+        subtitle.setWordWrap(True)
+        layout.addWidget(subtitle)
+
         separator = QFrame()
         separator.setObjectName("separator")
         separator.setFrameShape(QFrame.HLine)

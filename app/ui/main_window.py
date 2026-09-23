@@ -95,6 +95,10 @@ QPushButton#updateBannerButton:disabled {
     background-color: #c9d6e3;
     color: #6d7a87;
 }
+QLabel#pageSubtitle {
+    color: #9aa5b1;
+    font-size: 13px;
+}
 """
 
 
