@@ -1,3 +1,4 @@
+from PySide6.QtCore import QEvent
 from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
@@ -93,26 +94,111 @@ QPushButton#filterButton:hover {
 QPushButton#filterButton:pressed {
     background-color: #34404d;
 }
+QFrame#card {
+    background-color: #1a2027;
+    border: 1px solid #3a4552;
+    border-radius: 6px;
+}
+QLabel#cardTitle {
+    color: #ffffff;
+    font-weight: bold;
+    background: transparent;
+}
+QPushButton#cardButton {
+    background-color: transparent;
+    color: #d6dbe0;
+    border: none;
+    border-radius: 4px;
+    padding: 4px 8px;
+}
+QPushButton#cardButton:hover {
+    background-color: #2b3440;
+}
+QPushButton#cardButton:pressed {
+    background-color: #34404d;
+}
+QLabel#sectionTitle {
+    color: #ffffff;
+    font-size: 15px;
+    font-weight: bold;
+}
 QFrame#separator {
     background-color: #3a4552;
     border: none;
 }
-QListWidget#catalogList {
+QScrollArea#catalogScroll, QWidget#cardsContainer {
     background-color: transparent;
     border: none;
+}
+QFrame#datasetCard {
+    background-color: #1a2027;
+    border: 1px solid #3a4552;
+    border-radius: 6px;
+}
+QFrame#datasetCard:hover {
+    background-color: #1f2730;
+    border: 1px solid #4a5868;
+}
+QLabel#datasetIcon {
+    background-color: #2b3440;
+    border-radius: 6px;
+}
+QLabel#datasetTitle {
+    color: #ffffff;
+    font-size: 14px;
+    font-weight: bold;
+}
+QLabel#datasetSubtitle {
+    color: #9aa5b1;
+    font-size: 12px;
+}
+QLabel#badge {
+    background-color: #2b3440;
     color: #d6dbe0;
-    outline: none;
+    border-radius: 8px;
+    padding: 2px 8px;
+    font-size: 11px;
 }
-QListWidget#catalogList::item {
-    padding: 8px 12px;
+QLabel#statusBadgeOk, QLabel#statusBadgeUpdate {
+    border-radius: 6px;
+    padding: 1px 6px;
+    font-size: 10px;
+    font-weight: bold;
+}
+QLabel#statusBadgeOk {
+    background-color: #1f4d36;
+    color: #6fd39b;
+}
+QLabel#statusBadgeUpdate {
+    background-color: #5a4318;
+    color: #f0b95a;
+}
+QPushButton#cardActionButton {
+    background-color: transparent;
+    color: #d6dbe0;
+    border: 1px solid #3a4552;
     border-radius: 4px;
+    padding: 6px 12px;
 }
-QListWidget#catalogList::item:hover {
+QPushButton#cardActionButton:hover {
     background-color: #2b3440;
 }
-QListWidget#catalogList::item:selected {
+QPushButton#cardActionButton:pressed {
     background-color: #34404d;
+}
+QPushButton#cardDownloadButton {
+    background-color: #3a6ea5;
     color: #ffffff;
+    border: none;
+    border-radius: 4px;
+    padding: 6px 12px;
+    font-weight: bold;
+}
+QPushButton#cardDownloadButton:hover {
+    background-color: #4a7fb8;
+}
+QPushButton#cardDownloadButton:pressed {
+    background-color: #2f5c8a;
 }
 QWidget#updateBanner {
     background-color: #3a6ea5;
@@ -198,8 +284,13 @@ class MainWindow(QMainWindow):
         self._update_worker: UpdateCheckWorker | None = None
         self.check_for_update()
 
+    def changeEvent(self, event) -> None:
+        super().changeEvent(event)
+        if event.type() == QEvent.WindowStateChange:
+            self._catalogo_page.side_panel.setVisible(self.isMaximized())
+
     def _on_item_selected(self, item_id: str) -> None:
-        if item_id == "catalogo":
+        if item_id == "home":
             self.pages.setCurrentWidget(self._catalogo_page)
             return
         self.content_label.setText(f"Você selecionou: {item_id}")

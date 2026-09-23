@@ -5,37 +5,67 @@ from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import (
     QComboBox,
     QFrame,
+    QGridLayout,
     QHBoxLayout,
     QLabel,
     QLineEdit,
-    QListWidget,
     QPushButton,
+    QScrollArea,
     QVBoxLayout,
     QWidget,
 )
+
+from app.ui.dataset_card import DatasetCard
+from app.ui.side_panel import SidePanel
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
 FILTER_PLACEHOLDERS = ["Todos os temas", "Todas as fontes", "Todos os formatos", "Última atualização"]
 
-CATALOGO_ITEMS = ["População dos municípios"]
+CATALOGO_ITEMS = [
+    {
+        "title": "População dos municípios",
+        "subtitle": "Estimativas populacionais dos municípios do Amazonas.",
+        "badges": ["IBGE", "Demografia", "CSV"],
+        "has_update": False,
+    },
+]
 
 
 class CatalogoPage(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(16, 16, 16, 16)
+        # Grade: título/subtítulo na linha 0; o restante e o side panel na linha 1,
+        # assim o painel começa alinhado ao campo de busca.
+        root_layout = QGridLayout(self)
+        root_layout.setContentsMargins(16, 16, 16, 16)
+        root_layout.setHorizontalSpacing(16)
+        root_layout.setVerticalSpacing(8)
+        root_layout.setColumnStretch(0, 1)
+        root_layout.setRowStretch(1, 1)
+
+        header_layout = QVBoxLayout()
+        header_layout.setContentsMargins(0, 0, 0, 0)
+        header_layout.setSpacing(8)
+        root_layout.addLayout(header_layout, 0, 0)
+
+        layout = QVBoxLayout()
+        layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(8)
+        root_layout.addLayout(layout, 1, 0)
+
+        self.side_panel = SidePanel()
+        self.side_panel.setVisible(False)
+        root_layout.addWidget(self.side_panel, 1, 1)
 
         title = QLabel("Dados do Amazonas")
         title.setObjectName("pageTitle")
-        layout.addWidget(title)
+        header_layout.addWidget(title)
 
         subtitle = QLabel("Conecte-se as principais fontes de dados do estado, encontre o que precisa\ne gere seu arquivo CSV de forma simples e rapida.")
         subtitle.setObjectName("pageSubtitle")
         subtitle.setWordWrap(True)
-        layout.addWidget(subtitle)
+        header_layout.addWidget(subtitle)
 
         self.search_input = QLineEdit()
         self.search_input.setObjectName("searchInput")
@@ -72,13 +102,32 @@ class CatalogoPage(QWidget):
         separator.setFixedHeight(1)
         layout.addWidget(separator)
 
-        self.list_widget = QListWidget()
-        self.list_widget.setObjectName("catalogList")
-        self.list_widget.addItems(CATALOGO_ITEMS)
-        layout.addWidget(self.list_widget)
+        section_title = QLabel("Fontes de dados")
+        section_title.setObjectName("sectionTitle")
+        layout.addWidget(section_title)
+
+        scroll = QScrollArea()
+        scroll.setObjectName("catalogScroll")
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.NoFrame)
+
+        cards_container = QWidget()
+        cards_container.setObjectName("cardsContainer")
+        cards_layout = QVBoxLayout(cards_container)
+        cards_layout.setContentsMargins(0, 0, 0, 0)
+        cards_layout.setSpacing(8)
+
+        self.dataset_cards = []
+        for item in CATALOGO_ITEMS:
+            card = DatasetCard(**item)
+            cards_layout.addWidget(card)
+            self.dataset_cards.append(card)
+        cards_layout.addStretch()
+
+        scroll.setWidget(cards_container)
+        layout.addWidget(scroll, 1)
 
     def _filter_items(self, text: str) -> None:
         text = text.strip().lower()
-        for i in range(self.list_widget.count()):
-            item = self.list_widget.item(i)
-            item.setHidden(text not in item.text().lower())
+        for card in self.dataset_cards:
+            card.setVisible(card.matches(text))
