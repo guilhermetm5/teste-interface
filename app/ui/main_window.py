@@ -83,8 +83,8 @@ QComboBox#filterCombo QAbstractItemView {
 QPushButton#filterButton {
     background-color: #1a2027;
     border: 1px solid #3a4552;
+    color: #d6dbe0;
     border-radius: 4px;
-    min-width: 36px;
     padding: 8px 12px;
 }
 QPushButton#filterButton:hover {

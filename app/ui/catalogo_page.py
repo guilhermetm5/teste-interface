@@ -1,5 +1,6 @@
 from pathlib import Path
 
+from PySide6.QtCore import QSize
 from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import (
     QComboBox,
@@ -57,8 +58,10 @@ class CatalogoPage(QWidget):
             filters_layout.addWidget(combo, 1)
             self.filter_combos.append(combo)
 
-        self.filter_button = QPushButton()
+        self.filter_button = QPushButton("  Limpar")
         self.filter_button.setObjectName("filterButton")
+        self.filter_button.setIcon(QIcon(str(PROJECT_ROOT / "x.png")))
+        self.filter_button.setIconSize(QSize(14, 14))
         filters_layout.addWidget(self.filter_button)
 
         layout.addLayout(filters_layout)
