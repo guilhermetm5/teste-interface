@@ -124,7 +124,6 @@ class MainWindow(QMainWindow):
 
     def _on_update_check_ok(self, info: dict) -> None:
         remote_sha = info["sha"]
-        print(f"[updater] local={self._local_commit!r} remote={remote_sha!r}")
         if self._local_commit and remote_sha == self._local_commit:
             return
         self.update_banner_label.setText(
@@ -133,14 +132,13 @@ class MainWindow(QMainWindow):
         self.update_banner.setVisible(True)
 
     def _on_update_check_error(self, message: str) -> None:
-        print(f"[updater] falha ao checar atualização: {message}")
+        pass
 
     def _on_update_clicked(self) -> None:
         self.update_banner_button.setEnabled(False)
         self.update_banner_button.setText("Atualizando...")
 
         success, message = pull_latest()
-        print(f"[updater] pull_latest -> success={success} message={message!r}")
 
         if not success:
             self.update_banner_label.setText(f"Falha ao atualizar: {message}")
