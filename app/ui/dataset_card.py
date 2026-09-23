@@ -72,6 +72,12 @@ class DatasetCard(QFrame):
         buttons_layout = QHBoxLayout()
         buttons_layout.setSpacing(8)
 
+        self.details_button = QPushButton("  Detalhes")
+        self.details_button.setObjectName("cardActionButton")
+        self.details_button.setIcon(QIcon(str(PROJECT_ROOT / "info.png")))
+        self.details_button.setIconSize(QSize(16, 16))
+        buttons_layout.addWidget(self.details_button)
+
         self.source_button = QPushButton("  Ver fonte")
         self.source_button.setObjectName("cardActionButton")
         self.source_button.setIcon(QIcon(str(PROJECT_ROOT / "link.png")))
