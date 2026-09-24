@@ -16,6 +16,7 @@ from app.core.pipeline import PipelineService, manifest_to_collects, read_manife
 from app.core.updater import UpdateCheckWorker
 from app.core.version import get_local_commit, pull_latest, restart_app
 from app.ui.catalogo_page import NO_PIPELINE_MESSAGE, CatalogoPage
+from app.ui.dataset_details import DETAILS_STYLESHEET
 from app.ui.downloads_page import DOWNLOADS_STYLESHEET, DownloadsPage
 from app.ui.home_page import HOME_STYLESHEET, HomePage
 from app.ui.settings_page import SETTINGS_STYLESHEET, SettingsPage
@@ -249,6 +250,7 @@ class MainWindow(QMainWindow):
             + HOME_STYLESHEET
             + DOWNLOADS_STYLESHEET
             + SETTINGS_STYLESHEET
+            + DETAILS_STYLESHEET
         )
 
         central = QWidget()
@@ -344,6 +346,7 @@ class MainWindow(QMainWindow):
         if manifest is not None:
             self._downloads_page.set_collects(manifest_to_collects(manifest))
             self._home_page.set_manifest(manifest)
+            self._catalogo_page.update_datasets(manifest["datasets"])  # detalhes mostram a coleta nova
 
     def _on_pipeline_failed(self, message: str) -> None:
         QMessageBox.warning(self, "Pipeline de dados", message)
