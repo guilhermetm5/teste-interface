@@ -28,8 +28,8 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 ENCODINGS = [("UTF-8", "utf-8"), ("UTF-8 com BOM", "utf-8-sig"), ("Latin-1 (ISO-8859-1)", "latin-1")]
 SEPARATORS = [("Ponto e vírgula ( ; )", ";"), ("Vírgula ( , )", ","), ("Barra vertical ( | )", "|"), ("Tabulação", "\t")]
 
-# Última verificação de dados: valor de exemplo (ainda não há onde ler isso).
-LAST_CHECK_SAMPLE = "23/09/2026 10:24"
+# Ainda não há onde registrar a última verificação de dados; mostra "—" até existir.
+LAST_CHECK_TEXT = "—"
 
 
 class ToggleSwitch(QAbstractButton):
@@ -88,6 +88,8 @@ class SettingsPage(QWidget):
     check_app_update = Signal()
     # Pede à MainWindow para baixar e instalar a atualização do aplicativo.
     update_requested = Signal()
+    # Emitido depois de gravar no settings.json (a MainWindow recarrega o pipeline).
+    saved = Signal()
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -141,6 +143,20 @@ class SettingsPage(QWidget):
     def _build_collect(self) -> Panel:
         panel = Panel("↓", "Coleta de dados", "Controle como as coletas são executadas")
 
+        # Pasta do pipeline: com ele o app coleta; só com o manifest.json, apenas mostra os dados.
+        self.pipeline_dir = QLineEdit()
+        self.pipeline_dir.setObjectName("searchInput")
+        self.pipeline_dir.setPlaceholderText("Pasta do labsin-dados-publicos-am")
+        self.choose_pipeline_button = make_icon_button("Alterar", "cardActionButton")
+        self.choose_pipeline_button.clicked.connect(self._choose_pipeline_dir)
+        panel.body.addWidget(make_label("Pasta do pipeline", "rowValue"))
+        pipeline_row = QHBoxLayout()
+        pipeline_row.setSpacing(8)
+        pipeline_row.addWidget(self.pipeline_dir, 1)
+        pipeline_row.addWidget(self.choose_pipeline_button)
+        panel.body.addLayout(pipeline_row)
+        panel.body.addWidget(hline())
+
         self.output_dir = QLineEdit()
         self.output_dir.setObjectName("searchInput")
         self.choose_dir_button = make_icon_button("Alterar", "cardActionButton")
@@ -185,7 +201,7 @@ class SettingsPage(QWidget):
         last = QHBoxLayout()
         last.addWidget(make_label("Última verificação", "metricLabel"))
         last.addStretch()
-        last.addWidget(make_label(LAST_CHECK_SAMPLE, "rowValue"))
+        last.addWidget(make_label(LAST_CHECK_TEXT, "rowValue"))
         panel.body.addLayout(last)
         self.check_now_button = make_icon_button("↻  Verificar agora", "outlineButton")
         panel.body.addWidget(self.check_now_button)
@@ -261,6 +277,7 @@ class SettingsPage(QWidget):
     def load_values(self) -> None:
         """Preenche os controles com o que está salvo em disco."""
         s = settings.load()
+        self.pipeline_dir.setText(s["pipeline"]["pasta"])
         self.output_dir.setText(s["coleta"]["pasta_saida"])
         self.per_dataset.setChecked(s["coleta"]["pasta_por_dataset"])
         self.save_logs.setChecked(s["coleta"]["registrar_logs"])
@@ -278,6 +295,7 @@ class SettingsPage(QWidget):
     def collect_values(self) -> dict:
         """Lê os controles e devolve o dict de configurações."""
         s = settings.load()
+        s["pipeline"]["pasta"] = self.pipeline_dir.text().strip()
         s["coleta"]["pasta_saida"] = self.output_dir.text().strip() or settings.DEFAULTS["coleta"]["pasta_saida"]
         s["coleta"]["pasta_por_dataset"] = self.per_dataset.isChecked()
         s["coleta"]["registrar_logs"] = self.save_logs.isChecked()
@@ -300,6 +318,11 @@ class SettingsPage(QWidget):
         combo.setCurrentIndex(index if index >= 0 else 0)
 
     # --- ações ----------------------------------------------------------------
+
+    def _choose_pipeline_dir(self) -> None:
+        chosen = QFileDialog.getExistingDirectory(self, "Escolher a pasta do pipeline", self.pipeline_dir.text())
+        if chosen:
+            self.pipeline_dir.setText(str(Path(chosen)))
 
     def _choose_dir(self) -> None:
         chosen = QFileDialog.getExistingDirectory(self, "Escolher pasta de saída", self.output_dir.text())
@@ -341,6 +364,7 @@ class SettingsPage(QWidget):
             self._flash(self.status_label, f"Não foi possível salvar: {exc}", 5000)
             return
         self._flash(self.status_label, "Alterações salvas.")
+        self.saved.emit()
 
     def _on_cancel(self) -> None:
         self.load_values()
