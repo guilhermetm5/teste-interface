@@ -61,4 +61,10 @@ def pull_latest() -> tuple[bool, str]:
 
 def restart_app() -> None:
     """Encerra e reabre o processo atual, para carregar o código atualizado."""
+    if os.name == "nt":
+        # No Windows, os.execv não coloca aspas nos argumentos: com o Python em
+        # "C:\Program Files\..." o novo processo quebra o caminho no espaço.
+        # Popen recebe a lista e monta a linha de comando com as aspas certas.
+        subprocess.Popen([sys.executable, *sys.argv], cwd=os.getcwd())
+        os._exit(0)
     os.execv(sys.executable, [sys.executable, *sys.argv])

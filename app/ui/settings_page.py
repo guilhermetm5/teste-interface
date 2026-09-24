@@ -86,6 +86,8 @@ def make_combo(options: list) -> AnimatedComboBox:
 class SettingsPage(QWidget):
     # Pede à MainWindow para verificar atualizações do próprio aplicativo.
     check_app_update = Signal()
+    # Pede à MainWindow para baixar e instalar a atualização do aplicativo.
+    update_requested = Signal()
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -222,10 +224,21 @@ class SettingsPage(QWidget):
         panel.body.addLayout(info)
         panel.body.addWidget(hline())
 
+        # Aviso e botão de atualizar: só aparecem quando há versão nova (set_update_available).
+        self.update_available_label = make_label("", "rowValue")
+        self.update_available_label.setWordWrap(True)
+        self.update_available_label.setVisible(False)
+        panel.body.addWidget(self.update_available_label)
+        self.update_now_button = make_icon_button("↑  Atualizar agora", "saveButton")
+        self.update_now_button.setVisible(False)
+        self.update_now_button.clicked.connect(self.update_requested)
+        panel.body.addWidget(self.update_now_button)
+
         self.app_update_button = make_icon_button("↻  Verificar atualizações do aplicativo", "outlineButton")
         self.app_update_button.clicked.connect(self._on_check_app_update)
         panel.body.addWidget(self.app_update_button)
         self.app_update_status = make_label("", "datasetSubtitle")
+        self.app_update_status.setWordWrap(True)
         panel.body.addWidget(self.app_update_status)
         return panel
 
@@ -294,8 +307,32 @@ class SettingsPage(QWidget):
             self.output_dir.setText(str(Path(chosen)))
 
     def _flash(self, label: QLabel, text: str, ms: int = 2500) -> None:
+        """Mostra um texto e o apaga depois de `ms`. Uma nova chamada reinicia o tempo."""
         label.setText(text)
-        QTimer.singleShot(ms, lambda: label.setText(""))
+        timer = getattr(label, "_flash_timer", None)
+        if timer is None:
+            timer = QTimer(label)
+            timer.setSingleShot(True)
+            timer.timeout.connect(lambda: label.setText(""))
+            label._flash_timer = timer
+        timer.start(ms)
+
+    def set_update_available(self, info: dict | None) -> None:
+        """Mostra o aviso e o botão de atualizar quando `info` existe; esconde quando é None."""
+        available = info is not None
+        if available:
+            self.update_available_label.setText(
+                f"Nova atualização disponível: {info['message']} ({info['sha'][:7]})"
+            )
+        self.update_available_label.setVisible(available)
+        self.update_now_button.setVisible(available)
+
+    def set_update_busy(self, busy: bool) -> None:
+        self.update_now_button.setEnabled(not busy)
+        self.update_now_button.setText("Atualizando..." if busy else "↑  Atualizar agora")
+
+    def show_update_message(self, text: str) -> None:
+        self._flash(self.app_update_status, text, 6000)
 
     def _on_save(self) -> None:
         try:
@@ -311,7 +348,7 @@ class SettingsPage(QWidget):
 
     def _on_check_app_update(self) -> None:
         self.check_app_update.emit()
-        self._flash(self.app_update_status, "Verificando... o aviso aparece no topo se houver atualização.", 4000)
+        self._flash(self.app_update_status, "Verificando...", 15000)
 
 
 SETTINGS_STYLESHEET = """

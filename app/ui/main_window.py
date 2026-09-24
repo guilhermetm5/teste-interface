@@ -5,7 +5,6 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QMainWindow,
-    QPushButton,
     QStackedWidget,
     QVBoxLayout,
     QWidget,
@@ -228,27 +227,6 @@ QPushButton#cardDownloadButton:hover {
 QPushButton#cardDownloadButton:pressed {
     background-color: #2f5c8a;
 }
-QWidget#updateBanner {
-    background-color: #3a6ea5;
-}
-QLabel#updateBannerLabel {
-    color: #ffffff;
-}
-QPushButton#updateBannerButton {
-    background-color: #ffffff;
-    color: #3a6ea5;
-    border: none;
-    border-radius: 3px;
-    padding: 4px 10px;
-    font-weight: bold;
-}
-QPushButton#updateBannerButton:hover {
-    background-color: #e0e8f0;
-}
-QPushButton#updateBannerButton:disabled {
-    background-color: #c9d6e3;
-    color: #6d7a87;
-}
 QLabel#pageSubtitle {
     color: #9aa5b1;
     font-size: 13px;
@@ -278,24 +256,6 @@ class MainWindow(QMainWindow):
         root_layout.setContentsMargins(0, 0, 0, 0)
         root_layout.setSpacing(0)
 
-        self.update_banner = QWidget()
-        self.update_banner.setObjectName("updateBanner")
-        self.update_banner.setVisible(False)
-        banner_layout = QHBoxLayout(self.update_banner)
-        banner_layout.setContentsMargins(10, 6, 10, 6)
-
-        self.update_banner_label = QLabel()
-        self.update_banner_label.setObjectName("updateBannerLabel")
-        banner_layout.addWidget(self.update_banner_label)
-        banner_layout.addStretch()
-
-        self.update_banner_button = QPushButton("Atualizar agora")
-        self.update_banner_button.setObjectName("updateBannerButton")
-        self.update_banner_button.clicked.connect(self._on_update_clicked)
-        banner_layout.addWidget(self.update_banner_button)
-
-        root_layout.addWidget(self.update_banner)
-
         body = QWidget()
         body_layout = QHBoxLayout(body)
         body_layout.setContentsMargins(0, 0, 0, 0)
@@ -313,9 +273,11 @@ class MainWindow(QMainWindow):
         self._updates_page = UpdatesPage()
         self._home_page = HomePage()
         self._home_page.navigate.connect(self.sidebar.select)
+        self._home_page.update_requested.connect(self._on_update_clicked)
         self._downloads_page = DownloadsPage()
         self._settings_page = SettingsPage()
-        self._settings_page.check_app_update.connect(self.check_for_update)
+        self._settings_page.check_app_update.connect(lambda: self.check_for_update(manual=True))
+        self._settings_page.update_requested.connect(self._on_update_clicked)
         self.pages.addWidget(self._downloads_page)
         self.pages.addWidget(self._settings_page)
         self.pages.addWidget(self._home_page)
@@ -327,7 +289,18 @@ class MainWindow(QMainWindow):
 
         self._local_commit = get_local_commit()
         self._update_worker: UpdateCheckWorker | None = None
+        self._manual_check = False
         self.check_for_update()
+
+    def _wait_update_worker(self) -> None:
+        """Espera a checagem de atualização terminar antes de fechar/reiniciar.
+        Encerrar com a QThread ainda rodando gera avisos "QThreadStorage: entry ... destroyed"."""
+        if self._update_worker is not None and self._update_worker.isRunning():
+            self._update_worker.wait(6000)  # a requisição tem timeout de 5s
+
+    def closeEvent(self, event) -> None:
+        self._wait_update_worker()
+        super().closeEvent(event)
 
     def changeEvent(self, event) -> None:
         super().changeEvent(event)
@@ -356,34 +329,44 @@ class MainWindow(QMainWindow):
         self.content_label.setText(f"Você selecionou: {item_id}")
         self.pages.setCurrentWidget(self.content_label)
 
-    def check_for_update(self) -> None:
+    def check_for_update(self, manual: bool = False) -> None:
+        """Consulta o GitHub em segundo plano. `manual` indica que o usuário pediu a checagem
+        (então mostramos o resultado mesmo quando não há atualização)."""
+        self._manual_check = manual
         self._update_worker = UpdateCheckWorker()
         self._update_worker.finished_ok.connect(self._on_update_check_ok)
         self._update_worker.finished_error.connect(self._on_update_check_error)
         self._update_worker.start()
 
     def _on_update_check_ok(self, info: dict) -> None:
-        remote_sha = info["sha"]
-        if self._local_commit and remote_sha == self._local_commit:
+        if self._local_commit and info["sha"] == self._local_commit:
+            self._home_page.set_update_available(False)
+            self._settings_page.set_update_available(None)
+            if self._manual_check:
+                self._settings_page.show_update_message("Você já está na versão mais recente.")
             return
-        self.update_banner_label.setText(
-            f"Nova atualização disponível: {info['message']} ({remote_sha[:7]})"
-        )
-        self.update_banner.setVisible(True)
+        # Há versão nova: o botão aparece no Início e em Configurações > Aplicativo.
+        self._home_page.set_update_available(True)
+        self._settings_page.set_update_available(info)
+        if self._manual_check:
+            self._settings_page.show_update_message("")
 
     def _on_update_check_error(self, message: str) -> None:
-        pass
+        if self._manual_check:
+            self._settings_page.show_update_message("Não foi possível verificar atualizações.")
 
     def _on_update_clicked(self) -> None:
-        self.update_banner_button.setEnabled(False)
-        self.update_banner_button.setText("Atualizando...")
+        self._home_page.set_update_busy(True)
+        self._settings_page.set_update_busy(True)
 
         success, message = pull_latest()
 
         if not success:
-            self.update_banner_label.setText(f"Falha ao atualizar: {message}")
-            self.update_banner_button.setEnabled(True)
-            self.update_banner_button.setText("Atualizar agora")
+            self._home_page.set_update_busy(False)
+            self._settings_page.set_update_busy(False)
+            self._settings_page.show_update_message(f"Falha ao atualizar: {message}")
+            self.sidebar.select("config")  # a mensagem de erro fica em Configurações
             return
 
+        self._wait_update_worker()
         restart_app()

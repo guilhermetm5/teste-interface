@@ -212,6 +212,8 @@ def hline() -> QFrame:
 class HomePage(QWidget):
     # Pede ao app para abrir outra página, pelo id do item da sidebar.
     navigate = Signal(str)
+    # Pede à MainWindow para baixar e instalar a atualização do aplicativo.
+    update_requested = Signal()
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -286,7 +288,22 @@ class HomePage(QWidget):
         stamp.addWidget(make_label("Última atualização da plataforma", "rowCaption"))
         stamp.addWidget(make_label("23/09/2026 10:24", "rowValue"))
         h.addLayout(stamp)
+
+        # Só aparece quando o app detecta uma versão nova (ver set_update_available).
+        self.update_button = QPushButton("↑  Atualizar agora")
+        self.update_button.setObjectName("updateNowButton")
+        self.update_button.setCursor(Qt.PointingHandCursor)
+        self.update_button.setVisible(False)
+        self.update_button.clicked.connect(self.update_requested)
+        h.addWidget(self.update_button, 0, Qt.AlignVCenter)
         return h
+
+    def set_update_available(self, available: bool) -> None:
+        self.update_button.setVisible(available)
+
+    def set_update_busy(self, busy: bool) -> None:
+        self.update_button.setEnabled(not busy)
+        self.update_button.setText("Atualizando..." if busy else "↑  Atualizar agora")
 
     def _build_stats(self) -> QHBoxLayout:
         stats = QHBoxLayout()
@@ -471,6 +488,18 @@ QPushButton#linkButton {
     padding: 2px 4px;
 }
 QPushButton#linkButton:hover { color: #8cc4fa; }
+
+QPushButton#updateNowButton {
+    background-color: #3a6ea5;
+    color: #ffffff;
+    border: none;
+    border-radius: 4px;
+    padding: 8px 14px;
+    font-weight: bold;
+}
+QPushButton#updateNowButton:hover    { background-color: #4a7fb8; }
+QPushButton#updateNowButton:pressed  { background-color: #2f5c8a; }
+QPushButton#updateNowButton:disabled { background-color: #2b3440; color: #6d7a87; }
 
 QFrame#alertBanner {
     background-color: #2f2a1a;
