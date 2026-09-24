@@ -6,6 +6,16 @@ from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QPushButton, QVBoxLay
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
+# Estados possíveis do dataset -> texto do badge. As cores ficam no QSS
+# (QLabel#statusBadge[state="..."] em main_window.py).
+STATUS_LABELS = {
+    "updated": "Atualizado",
+    "update_available": "Atualização disponível",
+    "unchecked": "Não verificado",
+    "error": "Erro ao baixar/tratar",
+    "processing": "Processando",
+}
+
 
 class DatasetCard(QFrame):
     """Card horizontal: ícone | título + subtítulo + badges | status + botões."""
@@ -15,7 +25,7 @@ class DatasetCard(QFrame):
         title: str,
         subtitle: str,
         badges: list[str],
-        has_update: bool = False,
+        status: str = "unchecked",
         icon: str = "dataset.png",
         parent=None,
     ):
@@ -65,9 +75,10 @@ class DatasetCard(QFrame):
         actions_layout = QVBoxLayout()
         actions_layout.setSpacing(8)
 
-        status = QLabel("Com atualização" if has_update else "Atualizado")
-        status.setObjectName("statusBadgeUpdate" if has_update else "statusBadgeOk")
-        actions_layout.addWidget(status, 0, Qt.AlignRight)
+        self.status_label = QLabel()
+        self.status_label.setObjectName("statusBadge")
+        self.set_status(status)
+        actions_layout.addWidget(self.status_label, 0, Qt.AlignRight)
 
         buttons_layout = QHBoxLayout()
         buttons_layout.setSpacing(8)
@@ -92,6 +103,15 @@ class DatasetCard(QFrame):
 
         actions_layout.addLayout(buttons_layout)
         layout.addLayout(actions_layout)
+
+    def set_status(self, status: str) -> None:
+        """Atualiza o badge de status. `status` é uma chave de STATUS_LABELS."""
+        self.status = status
+        self.status_label.setText(STATUS_LABELS[status])
+        self.status_label.setProperty("state", status)
+        # Reaplica o QSS, já que o seletor depende da propriedade dinâmica.
+        self.status_label.style().unpolish(self.status_label)
+        self.status_label.style().polish(self.status_label)
 
     def matches(self, text: str) -> bool:
         haystack = " ".join([self.title, self.subtitle, *self.badges]).lower()

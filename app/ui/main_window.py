@@ -171,19 +171,31 @@ QLabel#badge {
     padding: 2px 8px;
     font-size: 11px;
 }
-QLabel#statusBadgeOk, QLabel#statusBadgeUpdate {
+QLabel#statusBadge {
     border-radius: 6px;
     padding: 1px 6px;
     font-size: 10px;
     font-weight: bold;
 }
-QLabel#statusBadgeOk {
+QLabel#statusBadge[state="updated"] {
     background-color: #1f4d36;
     color: #6fd39b;
 }
-QLabel#statusBadgeUpdate {
+QLabel#statusBadge[state="update_available"] {
     background-color: #5a4318;
     color: #f0b95a;
+}
+QLabel#statusBadge[state="unchecked"] {
+    background-color: #3a4552;
+    color: #c4ccd4;
+}
+QLabel#statusBadge[state="error"] {
+    background-color: #5a2323;
+    color: #f08a8a;
+}
+QLabel#statusBadge[state="processing"] {
+    background-color: #1f3d5a;
+    color: #7fb8ea;
 }
 QPushButton#cardActionButton {
     background-color: transparent;

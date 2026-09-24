@@ -44,7 +44,43 @@ CATALOGO_ITEMS = [
         "title": "População dos municípios",
         "subtitle": "Estimativas populacionais dos municípios do Amazonas.",
         "badges": ["IBGE", "Demografia", "CSV"],
-        "has_update": False,
+        "status": "updated",
+    },
+    {
+        "title": "Matrículas por município",
+        "subtitle": "Número de matrículas na educação básica, por município.",
+        "badges": ["INEP", "EDUCAÇÃO", "CSV"],
+        "status": "update_available",
+    },
+    {
+        "title": "Internações hospitalares",
+        "subtitle": "Registros de internações na rede de saúde do Amazonas.",
+        "badges": ["DATASUS", "SAÚDE", "CSV"],
+        "status": "error",
+    },
+    {
+        "title": "Ocorrências criminais",
+        "subtitle": "Ocorrências registradas por tipo e por município.",
+        "badges": ["SSP-AM", "SEGURANÇA", "CSV"],
+        "status": "unchecked",
+    },
+    {
+        "title": "Focos de queimadas",
+        "subtitle": "Focos de calor detectados por satélite no estado.",
+        "badges": ["INPE", "MEIO AMBIENTE", "CSV"],
+        "status": "processing",
+    },
+    {
+        "title": "Acesso a água e esgoto",
+        "subtitle": "Indicadores de água e esgoto por município.",
+        "badges": ["SNIS", "SANEAMENTO", "CSV"],
+        "status": "update_available",
+    },
+    {
+        "title": "Renda e emprego",
+        "subtitle": "Indicadores de renda, ocupação e PIB dos municípios.",
+        "badges": ["IBGE", "SOCIOECONOMICOS", "CSV"],
+        "status": "unchecked",
     },
 ]
 
