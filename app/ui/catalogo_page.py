@@ -1,7 +1,7 @@
 from pathlib import Path
 
-from PySide6.QtCore import QSize, Signal
-from PySide6.QtGui import QIcon
+from PySide6.QtCore import QSize, QUrl, Signal
+from PySide6.QtGui import QDesktopServices, QIcon
 from PySide6.QtWidgets import (
     QFrame,
     QGridLayout,
@@ -17,6 +17,7 @@ from PySide6.QtWidgets import (
 from app.core.pipeline import STATE_TO_BADGE
 from app.ui.animated_combo import AnimatedComboBox
 from app.ui.dataset_card import DatasetCard
+from app.ui.dataset_details import DatasetDetailsDialog
 from app.ui.side_panel import SidePanel
 from app.ui.updates_page import clear_layout, make_empty_state
 
@@ -142,6 +143,8 @@ class CatalogoPage(QWidget):
     def _show_cards(self, cards: list, empty_text: str = "") -> None:
         clear_layout(self.cards_layout)
         self.dataset_cards = cards
+        self._selected_card = None
+        self.side_panel.details.set_dataset(None)
         for card in cards:
             self.cards_layout.addWidget(card)
         if not cards:
@@ -166,13 +169,44 @@ class CatalogoPage(QWidget):
             )
             card.setToolTip(data["descricao"])
             card.dataset_name = name
+            card.dataset_data = data
             card.download_button.setText("  Coletar")
             card.download_button.setEnabled(can_run)
             if not can_run:
                 card.download_button.setToolTip("Pipeline não encontrado nesta máquina (modo leitor).")
             card.download_button.clicked.connect(lambda _c=False, n=name: self.run_requested.emit(n))
+            card.clicked.connect(self._select)
+            card.details_button.clicked.connect(lambda _c=False, c=card: self._show_details(c))
+            card.source_button.clicked.connect(lambda _c=False, u=data.get("url_oficial"): self._open_url(u))
             cards.append(card)
         self._show_cards(cards, "O pipeline não tem datasets disponíveis para coletar.")
+
+    def _select(self, card: DatasetCard) -> None:
+        """Marca o card e mostra os detalhes dele no painel lateral."""
+        self._selected_card = card
+        for other in self.dataset_cards:
+            other.set_selected(other is card)
+        self.side_panel.details.set_dataset(getattr(card, "dataset_data", None))
+
+    def _show_details(self, card: DatasetCard) -> None:
+        """Botão "Detalhes": com o painel lateral visível só seleciona; senão abre um diálogo."""
+        self._select(card)
+        if not self.side_panel.isVisible():
+            DatasetDetailsDialog(card.dataset_data, self).exec()
+
+    @staticmethod
+    def _open_url(url: str | None) -> None:
+        if url:
+            QDesktopServices.openUrl(QUrl(url))
+
+    def update_datasets(self, datasets: dict) -> None:
+        """Atualiza os dados guardados nos cards (ex.: depois de uma coleta) e o painel de detalhes."""
+        for card in self.dataset_cards:
+            name = getattr(card, "dataset_name", None)
+            if name in datasets:
+                card.dataset_data = datasets[name]
+                if card is self._selected_card:
+                    self.side_panel.details.set_dataset(card.dataset_data)
 
     def set_dataset_state(self, name: str, badge_state: str, detail: str = "") -> None:
         """Atualiza o badge de um card; `detail` (ex.: mensagem de erro) vira o tooltip do badge."""
