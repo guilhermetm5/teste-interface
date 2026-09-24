@@ -1,3 +1,4 @@
+from datetime import datetime
 from pathlib import Path
 
 from PySide6.QtCore import QRectF, QSize, Qt, Signal
@@ -7,59 +8,20 @@ from PySide6.QtWidgets import (
     QGridLayout,
     QHBoxLayout,
     QLabel,
-    QProgressBar,
     QPushButton,
     QScrollArea,
     QVBoxLayout,
     QWidget,
 )
 
-from app.ui.updates_page import StatCard, make_icon_button, make_label
+from app.core.pipeline import local_datetime, local_time
+from app.ui.updates_page import StatCard, clear_layout, make_empty_state, make_label
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
 GREEN = "#2ebd85"
-BLUE = "#3a8ee6"
-PURPLE = "#7a5ccf"
-ORANGE = "#e8833a"
-TEAL = "#22b8b0"
 GREY = "#7a879a"
-AMBER = "#f0b95a"
 RED = "#e05c5c"
-TEXT = "#d6dbe0"
-
-# Dados de exemplo (layout apenas). `state` reaproveita as cores do QLabel#statusBadge.
-RECENT_COLLECTS = [
-    ("População dos municípios", "IBGE · API", "Concluída", "updated", "23/09/2026 10:24", "63.248 linhas"),
-    ("Saúde por município", "DATASUS · API", "Concluída", "updated", "23/09/2026 09:42", "98.421 linhas"),
-    ("Educação básica", "INEP · API", "Com erros", "update_available", "22/09/2026 16:37", "45.882 linhas"),
-    ("PIB municipal", "IBGE · API", "Atualizando", "processing", "22/09/2026 14:12", "62.100 linhas"),
-    ("Desmatamento", "INPE · API", "Pendente", "unchecked", "21/09/2026 09:51", "31.772 linhas"),
-]
-
-DATASET_STATUS = [
-    ("Atualizados", GREEN, 18, "75%"),
-    ("Com atualização", AMBER, 3, "12%"),
-    ("Com erro", RED, 1, "4%"),
-    ("Sem dados", GREY, 2, "8%"),
-]
-
-ACTIVITY = [
-    ("10:24", "ok", "População dos municípios", "2 arquivos gerados (fato + dimensão)"),
-    ("09:42", "ok", "Saúde por município", "2 arquivos gerados (fato + dimensão)"),
-    ("Ontem\n16:37", "bad", "Educação básica", "18 registros com erro"),
-    ("Ontem\n14:12", "warn", "PIB municipal", "Nova versão detectada"),
-    ("Ontem\n09:51", "muted", "Desmatamento", "Verificação concluída"),
-]
-
-THEME_ACTIVITY = [
-    ("População", 4, GREEN),
-    ("Saúde", 3, BLUE),
-    ("Educação", 2, PURPLE),
-    ("Economia", 1, ORANGE),
-    ("Meio Ambiente", 1, TEAL),
-    ("Outros", 1, GREY),
-]
 
 
 class DonutChart(QWidget):
@@ -98,41 +60,6 @@ class DonutChart(QWidget):
         font.setBold(False)
         painter.setFont(font)
         painter.drawText(QRectF(0, self.height() / 2 + 4, self.width(), 16), Qt.AlignCenter, self.caption)
-
-
-class BarChart(QWidget):
-    """Gráfico de barras simples: valor acima da barra e rótulo embaixo."""
-
-    def __init__(self, data: list, parent=None):
-        super().__init__(parent)
-        self.data = data
-        self.setMinimumHeight(150)
-
-    def paintEvent(self, event) -> None:
-        painter = QPainter(self)
-        painter.setRenderHint(QPainter.Antialiasing)
-        font = QFont(self.font())
-        font.setPixelSize(11)
-        painter.setFont(font)
-
-        label_h, value_h = 18, 18
-        chart_h = self.height() - label_h - value_h
-        slot = self.width() / len(self.data)
-        bar_w = min(slot * 0.55, 44)
-        top = max(value for _, value, _ in self.data)
-
-        for i, (label, value, color) in enumerate(self.data):
-            x = i * slot + (slot - bar_w) / 2
-            bar_h = max(6, chart_h * value / top)
-            y = value_h + chart_h - bar_h
-            painter.setPen(Qt.NoPen)
-            painter.setBrush(QColor(color))
-            painter.drawRoundedRect(QRectF(x, y, bar_w, bar_h), 3, 3)
-
-            painter.setPen(QColor(TEXT))
-            painter.drawText(QRectF(i * slot, y - value_h, slot, value_h), Qt.AlignCenter, str(value))
-            painter.setPen(QColor("#9aa5b1"))
-            painter.drawText(QRectF(i * slot, self.height() - label_h, slot, label_h), Qt.AlignCenter, label)
 
 
 class Panel(QFrame):
@@ -233,24 +160,11 @@ class HomePage(QWidget):
         content = QWidget()
         content.setObjectName("cardsContainer")
         scroll.setWidget(content)
-        body = QVBoxLayout(content)
-        body.setContentsMargins(0, 0, 0, 0)
-        body.setSpacing(12)
+        # Tudo que depende de dados fica aqui dentro e é refeito em set_manifest().
+        self.body = QVBoxLayout(content)
+        self.body.setContentsMargins(0, 0, 0, 0)
+        self.body.setSpacing(12)
         root.addWidget(scroll, 1, 0)
-
-        body.addLayout(self._build_stats())
-        body.addWidget(self._build_alert())
-        panels = QGridLayout()
-        panels.setHorizontalSpacing(12)
-        panels.setVerticalSpacing(12)
-        panels.setColumnStretch(0, 3)
-        panels.setColumnStretch(1, 2)
-        panels.addWidget(self._build_collects(), 0, 0)
-        panels.addWidget(self._build_status(), 0, 1)
-        panels.addWidget(self._build_themes(), 1, 0)
-        panels.addWidget(self._build_activity(), 1, 1)
-        body.addLayout(panels)
-        body.addStretch()
 
         # Coluna lateral: só aparece com a janela maximizada (controlado pela MainWindow).
         self.side_column = QWidget()
@@ -260,9 +174,38 @@ class HomePage(QWidget):
         side.setContentsMargins(0, 0, 0, 0)
         side.setSpacing(12)
         side.addWidget(self._build_quick_actions())
-        side.addWidget(self._build_highlights())
         side.addStretch()
         root.addWidget(self.side_column, 0, 1, 2, 1)
+
+        self.set_manifest(None)
+
+    # --- dados ----------------------------------------------------------------
+
+    def set_manifest(self, manifest: dict | None) -> None:
+        """Refaz os blocos com os dados do manifesto do pipeline (None = sem dados)."""
+        clear_layout(self.body)
+        datasets = list((manifest or {}).get("datasets", {}).values())
+        runs = sorted(
+            (d for d in datasets if d.get("ultima_execucao")),
+            key=lambda d: d["ultima_execucao"]["iniciada_em"], reverse=True,
+        )
+        generated = local_time(manifest["gerado_em"]) if manifest and manifest.get("gerado_em") else "—"
+        self.stamp_value.setText(generated)
+
+        self.body.addLayout(self._build_stats(datasets, runs))
+        failed = [d for d in datasets if d["estado"] == "falhou"]
+        if failed:
+            self.body.addWidget(self._build_alert(len(failed)))
+        panels = QGridLayout()
+        panels.setHorizontalSpacing(12)
+        panels.setVerticalSpacing(12)
+        panels.setColumnStretch(0, 3)
+        panels.setColumnStretch(1, 2)
+        panels.addWidget(self._build_collects(runs), 0, 0)
+        panels.addWidget(self._build_status(datasets), 0, 1)
+        panels.addWidget(self._build_activity(runs), 1, 0, 1, 2)
+        self.body.addLayout(panels)
+        self.body.addStretch()
 
     # --- blocos ---------------------------------------------------------------
 
@@ -285,8 +228,9 @@ class HomePage(QWidget):
         h.addWidget(make_label("▦", "panelGlyph"), 0, Qt.AlignTop)
         stamp = QVBoxLayout()
         stamp.setSpacing(1)
-        stamp.addWidget(make_label("Última atualização da plataforma", "rowCaption"))
-        stamp.addWidget(make_label("23/09/2026 10:24", "rowValue"))
+        stamp.addWidget(make_label("Última geração dos dados", "rowCaption"))
+        self.stamp_value = make_label("—", "rowValue")
+        stamp.addWidget(self.stamp_value)
         h.addLayout(stamp)
 
         # Só aparece quando o app detecta uma versão nova (ver set_update_available).
@@ -305,16 +249,18 @@ class HomePage(QWidget):
         self.update_button.setEnabled(not busy)
         self.update_button.setText("Atualizando..." if busy else "↑  Atualizar agora")
 
-    def _build_stats(self) -> QHBoxLayout:
+    def _build_stats(self, datasets: list, runs: list) -> QHBoxLayout:
+        never = sum(1 for d in datasets if d["estado"] == "nunca")
+        files = sum(len(d["ultima_execucao"]["arquivos"]) for d in runs)
         stats = QHBoxLayout()
         stats.setSpacing(10)
-        stats.addWidget(StatCard("▤", 24, "Datasets disponíveis", "Fontes de dados do Amazonas", "info"))
-        stats.addWidget(StatCard("↻", 3, "Atualizações pendentes", "Datasets com novos dados", "warn"))
-        stats.addWidget(StatCard("▶", 12, "Coletas realizadas", "Últimos 7 dias", "ok"))
-        stats.addWidget(StatCard("↓", 47, "Arquivos gerados", "CSV, atualizações e histórico", "purple"))
+        stats.addWidget(StatCard("▤", len(datasets), "Datasets disponíveis", "Fontes do pipeline", "info"))
+        stats.addWidget(StatCard("↻", never, "Ainda não coletados", "Datasets sem nenhuma coleta", "warn"))
+        stats.addWidget(StatCard("▶", len(runs), "Coletas realizadas", "Última de cada dataset", "ok"))
+        stats.addWidget(StatCard("↓", files, "Arquivos gerados", "CSVs da última coleta", "purple"))
         return stats
 
-    def _build_alert(self) -> QFrame:
+    def _build_alert(self, failed: int) -> QFrame:
         banner = QFrame()
         banner.setObjectName("alertBanner")
         h = QHBoxLayout(banner)
@@ -326,23 +272,28 @@ class HomePage(QWidget):
         h.addWidget(icon)
         texts = QVBoxLayout()
         texts.setSpacing(2)
-        texts.addWidget(make_label("3 datasets possuem novos dados disponíveis", "panelTitle"))
-        texts.addWidget(make_label(
-            "Verifique as atualizações para coletar a nova versão dos dados.", "datasetSubtitle"
-        ))
+        plural = "datasets falharam" if failed != 1 else "dataset falhou"
+        texts.addWidget(make_label(f"{failed} {plural} na última coleta", "panelTitle"))
+        texts.addWidget(make_label("Veja o motivo em Explorar dados e tente coletar de novo.", "datasetSubtitle"))
         h.addLayout(texts, 1)
-        self.alert_button = QPushButton("→  Ver atualizações")
-        self.alert_button.setObjectName("alertButton")
-        self.alert_button.setCursor(Qt.PointingHandCursor)
-        self.alert_button.clicked.connect(lambda: self.navigate.emit("update"))
-        h.addWidget(self.alert_button)
+        button = QPushButton("→  Explorar dados")
+        button.setObjectName("alertButton")
+        button.setCursor(Qt.PointingHandCursor)
+        button.clicked.connect(lambda: self.navigate.emit("explore"))
+        h.addWidget(button)
         return banner
 
-    def _build_collects(self) -> Panel:
+    def _build_collects(self, runs: list) -> Panel:
         panel = Panel("◷", "Últimas coletas", "Coletas mais recentes realizadas no sistema", "Ver todas →")
         panel.link_button.clicked.connect(lambda: self.navigate.emit("download"))
         panel.body.setSpacing(0)
-        for i, (title, source, status, state, when, lines) in enumerate(RECENT_COLLECTS):
+        if not runs:
+            panel.body.addWidget(make_empty_state("Nenhuma coleta realizada ainda."))
+            return panel
+        for i, d in enumerate(runs[:5]):
+            run = d["ultima_execucao"]
+            failed = bool(run["erro"])
+            lines = sum(f["linhas"] for f in run["arquivos"])
             if i:
                 panel.body.addWidget(hline())
             row = QWidget()
@@ -357,64 +308,80 @@ class HomePage(QWidget):
             h.addWidget(icon)
             info = QVBoxLayout()
             info.setSpacing(1)
-            info.addWidget(make_label(title, "rowValue"))
-            info.addWidget(make_label(source, "datasetSubtitle"))
+            info.addWidget(make_label(d.get("titulo") or d["fonte"], "rowValue"))
+            info.addWidget(make_label(d["fonte"], "datasetSubtitle"))
             h.addLayout(info, 1)
-            h.addWidget(make_label(status, "statusBadge", state=state))
-            when_box = QVBoxLayout()
-            when_box.setSpacing(1)
-            when_box.addWidget(make_label(when, "rowValue"))
-            when_box.addWidget(make_label(lines, "datasetSubtitle"))
-            h.addLayout(when_box)
-            h.addWidget(make_label("›", "chevron"))
+            h.addWidget(make_label("Falhou" if failed else "Concluída", "statusBadge",
+                                   state="error" if failed else "updated"))
+            when = QVBoxLayout()
+            when.setSpacing(1)
+            when.addWidget(make_label(local_time(run["iniciada_em"]), "rowValue"))
+            when.addWidget(make_label("sem arquivos" if failed else f"{lines:,} linhas".replace(",", "."),
+                                      "datasetSubtitle"))
+            h.addLayout(when)
             panel.body.addWidget(row)
         return panel
 
-    def _build_status(self) -> Panel:
-        panel = Panel("▥", "Status dos datasets", "Visão geral da situação atual")
+    def _build_status(self, datasets: list) -> Panel:
+        panel = Panel("▥", "Status dos datasets", "Situação da última coleta")
+        if not datasets:
+            panel.body.addWidget(make_empty_state("Sem datasets para mostrar."))
+            return panel
+        legend_rows = [
+            ("Coletados", GREEN, sum(1 for d in datasets if d["estado"] == "ok")),
+            ("Com erro", RED, sum(1 for d in datasets if d["estado"] == "falhou")),
+            ("Sem coleta", GREY, sum(1 for d in datasets if d["estado"] == "nunca")),
+        ]
+        total = len(datasets)
         h = QHBoxLayout()
         h.setSpacing(14)
-        chart = DonutChart([(color, count) for _, color, count, _ in DATASET_STATUS], "24", "total")
-        h.addWidget(chart)
+        h.addWidget(DonutChart([(color, n) for _, color, n in legend_rows], str(total), "total"))
         legend = QGridLayout()
         legend.setHorizontalSpacing(8)
         legend.setVerticalSpacing(8)
-        for r, (label, color, count, pct) in enumerate(DATASET_STATUS):
+        for r, (label, color, n) in enumerate(legend_rows):
             dot = make_label("●", "legendDot")
             dot.setStyleSheet(f"color: {color};")
             legend.addWidget(dot, r, 0)
             legend.addWidget(make_label(label, "metricLabel"), r, 1)
-            legend.addWidget(make_label(f"{count} ({pct})", "metricLabel"), r, 2, Qt.AlignRight)
+            legend.addWidget(make_label(f"{n} ({round(100 * n / total)}%)", "metricLabel"), r, 2, Qt.AlignRight)
         legend.setColumnStretch(1, 1)
         h.addLayout(legend, 1)
         panel.body.addLayout(h)
         return panel
 
-    def _build_themes(self) -> Panel:
-        panel = Panel("▥", "Atividade por tema", "Distribuição das coletas nos últimos 7 dias")
-        panel.body.addWidget(BarChart(THEME_ACTIVITY))
-        return panel
-
-    def _build_activity(self) -> Panel:
+    def _build_activity(self, runs: list) -> Panel:
         panel = Panel("ϟ", "Atividade recente", "Últimas ações no sistema")
-        for when, tone, title, desc in ACTIVITY:
+        if not runs:
+            panel.body.addWidget(make_empty_state("Nenhuma atividade registrada ainda."))
+            return panel
+        today = datetime.now().astimezone().date()
+        for d in runs[:5]:
+            run = d["ultima_execucao"]
+            moment = local_datetime(run["iniciada_em"])
+            if moment is None:
+                when = "—"
+            elif moment.date() == today:
+                when = moment.strftime("%H:%M")
+            else:
+                when = moment.strftime("%d/%m\n%H:%M")
+            failed = bool(run["erro"])
+            n = len(run["arquivos"])
+            desc = f"Erro: {run['erro']}" if failed else f"{n} arquivo{'s' if n != 1 else ''} gerado{'s' if n != 1 else ''}"
             h = QHBoxLayout()
             h.setSpacing(10)
             time_label = make_label(when, "metricLabel")
             time_label.setFixedWidth(42)
             h.addWidget(time_label, 0, Qt.AlignTop)
-            h.addWidget(make_label("●", "dot", tone=tone), 0, Qt.AlignTop)
+            h.addWidget(make_label("●", "dot", tone="bad" if failed else "ok"), 0, Qt.AlignTop)
             texts = QVBoxLayout()
             texts.setSpacing(0)
-            texts.addWidget(make_label(title, "rowValue"))
-            texts.addWidget(make_label(desc, "datasetSubtitle"))
+            texts.addWidget(make_label(d.get("titulo") or d["fonte"], "rowValue"))
+            detail = make_label(desc, "datasetSubtitle")
+            detail.setWordWrap(True)
+            texts.addWidget(detail)
             h.addLayout(texts, 1)
             panel.body.addLayout(h)
-        link = QPushButton("Ver todas as atividades →")
-        link.setObjectName("linkButton")
-        link.setCursor(Qt.PointingHandCursor)
-        link.clicked.connect(lambda: self.navigate.emit("update"))
-        panel.body.addWidget(link, 0, Qt.AlignRight)
         return panel
 
     def _build_quick_actions(self) -> Panel:
@@ -427,40 +394,6 @@ class HomePage(QWidget):
             card = ActionCard(glyph, title, sub, tone)
             card.clicked.connect(lambda t=target: self.navigate.emit(t))
             panel.body.addWidget(card)
-        return panel
-
-    def _build_highlights(self) -> Panel:
-        panel = Panel("☆", "Destaques", "")
-
-        def item(glyph, tone, title, sub):
-            h = QHBoxLayout()
-            h.setSpacing(10)
-            icon = make_label(glyph, "statIcon", tone=tone)
-            icon.setFixedSize(30, 30)
-            icon.setAlignment(Qt.AlignCenter)
-            h.addWidget(icon, 0, Qt.AlignTop)
-            texts = QVBoxLayout()
-            texts.setSpacing(1)
-            texts.addWidget(make_label(title, "rowValue"))
-            texts.addWidget(make_label(sub, "datasetSubtitle"))
-            h.addLayout(texts, 1)
-            return h, texts
-
-        row, _ = item("!", "ok", "Sistema funcionando normalmente", "Todos os serviços operacionais")
-        panel.body.addLayout(row)
-        panel.body.addWidget(hline())
-        row, _ = item("i", "info", "Próxima verificação", "23/09/2026 16:00")
-        panel.body.addLayout(row)
-        panel.body.addWidget(hline())
-        row, texts = item("▤", "muted", "Espaço em disco (arquivos)", "42,7 GB de 100 GB (43%)")
-        bar = QProgressBar()
-        bar.setObjectName("diskBar")
-        bar.setRange(0, 100)
-        bar.setValue(43)
-        bar.setTextVisible(False)
-        bar.setFixedHeight(6)
-        texts.addWidget(bar)
-        panel.body.addLayout(row)
         return panel
 
 
@@ -524,14 +457,4 @@ QLabel#actionTitle { font-size: 13px; }
 QLabel#actionTitle[tone="info"]   { color: #8fc1f0; }
 QLabel#actionTitle[tone="ok"]     { color: #6fd39b; }
 QLabel#actionTitle[tone="purple"] { color: #b9a6f5; }
-
-QProgressBar#diskBar {
-    background-color: #2b3440;
-    border: none;
-    border-radius: 3px;
-}
-QProgressBar#diskBar::chunk {
-    background-color: #2ebd85;
-    border-radius: 3px;
-}
 """
