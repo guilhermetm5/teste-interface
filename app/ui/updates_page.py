@@ -24,115 +24,15 @@ TABS = [
     ("unchanged", "Sem alteração"),
 ]
 
-# Dados de exemplo (layout apenas). `state` reaproveita as cores do QLabel#statusBadge.
-DATASETS = [
-    {
-        "title": "População dos municípios",
-        "source": "IBGE · API",
-        "state": "update_available",
-        "badge": "Nova versão disponível",
-        "group": "available",
-        "last_check": "23/09/2026 10:24",
-        "last_collect": "12/09/2026",
-        "prev_period": "2024",
-        "new_period": "2025",
-        "added": 1248, "removed": 12, "changed": 184,
-        "valid": 1230, "valid_pct": "98,4%",
-        "errors": 18, "errors_pct": "1,4%",
-        "empty": 7, "empty_pct": "0,2%",
-        "rows_prev": 62000, "rows_now": 63248,
-        "errs_prev": 5, "errs_now": 18,
-        "note": "Novos dados disponíveis para o período de 2025.",
-        "files": [
-            ("fato_populacao.csv", "+1.248 linhas", "~ 8,4 MB"),
-            ("dim_municipio.csv", "+0 linhas", "~ 2,1 MB"),
-        ],
-    },
-    {
-        "title": "Internações hospitalares",
-        "source": "DATASUS · API",
-        "state": "update_available",
-        "badge": "Atualização disponível",
-        "group": "available",
-        "last_check": "22/09/2026 16:37",
-        "last_collect": "10/08/2026",
-        "prev_period": "07/2026",
-        "new_period": "08/2026",
-        "added": 5310, "removed": 0, "changed": 42,
-        "valid": 5300, "valid_pct": "99,8%",
-        "errors": 10, "errors_pct": "0,2%",
-        "empty": 0, "empty_pct": "0,0%",
-        "rows_prev": 91200, "rows_now": 96510,
-        "errs_prev": 2, "errs_now": 10,
-        "note": "Novos dados disponíveis para agosto de 2026.",
-        "files": [("fato_internacoes.csv", "+5.310 linhas", "~ 12,7 MB")],
-    },
-    {
-        "title": "Educação básica",
-        "source": "INEP · API",
-        "state": "error",
-        "badge": "Com registros inválidos",
-        "group": "invalid",
-        "last_check": "22/09/2026 14:12",
-        "last_collect": "05/08/2026",
-        "prev_period": "2024",
-        "new_period": "2025",
-        "added": 830, "removed": 4, "changed": 96,
-        "valid": 760, "valid_pct": "91,6%",
-        "errors": 62, "errors_pct": "7,5%",
-        "empty": 8, "empty_pct": "1,0%",
-        "rows_prev": 40100, "rows_now": 40926,
-        "errs_prev": 3, "errs_now": 62,
-        "note": "Há registros inválidos que precisam de atenção antes da coleta.",
-        "files": [("fato_matriculas.csv", "+830 linhas", "~ 3,2 MB")],
-    },
-    {
-        "title": "PIB municipal",
-        "source": "IBGE · API",
-        "state": "unchecked",
-        "badge": "Sem alteração",
-        "group": "unchanged",
-        "last_check": "22/09/2026 11:03",
-        "last_collect": "15/08/2026",
-        "prev_period": "2023",
-        "new_period": "2023",
-        "added": 0, "removed": 0, "changed": 0,
-        "valid": 62, "valid_pct": "100%",
-        "errors": 0, "errors_pct": "0,0%",
-        "empty": 0, "empty_pct": "0,0%",
-        "rows_prev": 62, "rows_now": 62,
-        "errs_prev": 0, "errs_now": 0,
-        "note": "Os dados estão atualizados.",
-        "files": [],
-    },
-    {
-        "title": "Desmatamento",
-        "source": "INPE · API",
-        "state": "unchecked",
-        "badge": "Sem alteração",
-        "group": "unchanged",
-        "last_check": "21/09/2026 09:51",
-        "last_collect": "20/08/2026",
-        "prev_period": "2025",
-        "new_period": "2025",
-        "added": 0, "removed": 0, "changed": 0,
-        "valid": 1520, "valid_pct": "100%",
-        "errors": 0, "errors_pct": "0,0%",
-        "empty": 0, "empty_pct": "0,0%",
-        "rows_prev": 1520, "rows_now": 1520,
-        "errs_prev": 0, "errs_now": 0,
-        "note": "Os dados estão atualizados.",
-        "files": [],
-    },
-]
-
-LOG_TIMES = ["10:24:17", "10:24:19", "10:24:20", "10:24:21", "10:24:22", "10:24:22", "10:24:23"]
-LOG_RESULT = {
-    "available": "NOVOS DADOS ENCONTRADOS",
-    "invalid": "REGISTROS INVÁLIDOS ENCONTRADOS",
-    "unchanged": "NENHUMA ALTERAÇÃO",
-}
-
+# O pipeline ainda não informa "há versão nova" para as fontes coletáveis, então não há dados reais
+# aqui. Cada item, quando existir, tem o formato lido por UpdateRow/DetailPanel (title, source,
+# state, badge, group, last_check, last_collect, prev_period, new_period, added, removed, changed,
+# valid/valid_pct, errors/errors_pct, empty/empty_pct, rows_prev/rows_now, errs_prev/errs_now,
+# note, files, log). `state` reaproveita as cores do QLabel#statusBadge.
+NO_UPDATES_MESSAGE = (
+    "Nenhuma verificação de atualização disponível. "
+    "O pipeline ainda não informa versões novas das fontes."
+)
 
 def fmt(n: int) -> str:
     return f"{n:,}".replace(",", ".")
@@ -146,25 +46,19 @@ def signed(n: int) -> str:
     return "0"
 
 
-def build_log(d: dict) -> str:
-    source = d["source"].split(" · ")[0]
-    lines = [
-        "Iniciando verificação...",
-        f"Conectando à API do {source}...",
-        f"Consultando {d['title'].lower()}...",
-        f"Último período disponível: {d['new_period']}",
-        f"Último período coletado: {d['prev_period']}",
-        LOG_RESULT[d["group"]],
-        "Verificação concluída.",
-    ]
-    return "\n".join(f"{t}  {line}" for t, line in zip(LOG_TIMES, lines))
-
-
 def make_label(text: str, name: str, **props) -> QLabel:
     label = QLabel(text)
     label.setObjectName(name)
     for key, value in props.items():
         label.setProperty(key, value)
+    return label
+
+
+def make_empty_state(text: str) -> QLabel:
+    """Mensagem centralizada para listas sem dados (em vez de dados de exemplo)."""
+    label = make_label(text, "emptyState")
+    label.setAlignment(Qt.AlignCenter)
+    label.setWordWrap(True)
     return label
 
 
@@ -185,8 +79,12 @@ def repolish(widget: QWidget) -> None:
 
 def clear_layout(layout) -> None:
     while (item := layout.takeAt(0)) is not None:
-        if item.widget() is not None:
-            item.widget().deleteLater()
+        widget = item.widget()
+        if widget is not None:
+            widget.setParent(None)  # sai da tela já; deleteLater libera a memória depois
+            widget.deleteLater()
+        elif item.layout() is not None:
+            clear_layout(item.layout())  # layouts aninhados também têm widgets a apagar
 
 
 class StatCard(QFrame):
@@ -493,9 +391,15 @@ class DetailPanel(QFrame):
         line.setFixedHeight(1)
         return line
 
-    def set_dataset(self, d: dict) -> None:
+    def set_dataset(self, d: dict | None) -> None:
+        if d is None:  # nenhum dataset selecionado
+            d = {"title": "Nenhum dataset selecionado", "source": "", "badge": "", "state": "unchecked",
+                 "prev_period": "—", "new_period": "—", "added": 0, "removed": 0, "changed": 0,
+                 "valid": 0, "valid_pct": "—", "errors": 0, "errors_pct": "—", "empty": 0,
+                 "empty_pct": "—", "files": [], "group": "unchanged", "log": ""}
         self.title.setText(d["title"])
         self.source.setText(d["source"])
+        self.badge.setVisible(bool(d["badge"]))
         self.badge.setText(d["badge"])
         self.badge.setProperty("state", d["state"])
         repolish(self.badge)
@@ -529,13 +433,14 @@ class DetailPanel(QFrame):
             h.addWidget(make_label(size, "metricLabel"), 0, Qt.AlignBottom)
             self.files_layout.addWidget(item)
 
-        self.log_view.setPlainText(build_log(d))
+        self.log_view.setPlainText(d.get("log", ""))
         self.collect_button.setEnabled(d["group"] != "unchanged")
 
 
 class UpdatesPage(QWidget):
-    def __init__(self, parent=None):
+    def __init__(self, datasets: list | None = None, parent=None):
         super().__init__(parent)
+        datasets = datasets or []
         # Mesma grade da CatalogoPage: o painel de detalhes ocupa a coluna 1 inteira.
         root = QGridLayout(self)
         root.setContentsMargins(16, 16, 16, 16)
@@ -560,13 +465,13 @@ class UpdatesPage(QWidget):
         self.detail_panel.setVisible(False)
         root.addWidget(self.detail_panel, 0, 1, 2, 1)
 
-        counts = {key: sum(1 for d in DATASETS if d["group"] == key) for key, _ in TABS}
+        counts = {key: sum(1 for d in datasets if d["group"] == key) for key, _ in TABS}
 
         # Cards de resumo
         stats = QHBoxLayout()
         stats.setSpacing(10)
-        stats.addWidget(StatCard("▤", len(DATASETS), "Datasets verificados",
-                                 f"Última verificação: {DATASETS[0]['last_check']}", "info"))
+        last_check = f"Última verificação: {datasets[0]['last_check']}" if datasets else "Nenhuma verificação ainda"
+        stats.addWidget(StatCard("▤", len(datasets), "Datasets verificados", last_check, "info"))
         stats.addWidget(StatCard("↑", counts["available"], "Atualizações disponíveis",
                                  "(novos dados)", "ok"))
         stats.addWidget(StatCard("!", counts["invalid"], "Com registros inválidos",
@@ -604,12 +509,14 @@ class UpdatesPage(QWidget):
         rows_layout.setSpacing(8)
 
         self.rows = []
-        for data in DATASETS:
+        for data in datasets:
             row = UpdateRow(data)
             row.clicked.connect(self._on_row_clicked)
             row.collect_button.clicked.connect(lambda: None)
             rows_layout.addWidget(row)
             self.rows.append(row)
+        if not datasets:
+            rows_layout.addWidget(make_empty_state(NO_UPDATES_MESSAGE))
         rows_layout.addStretch()
         scroll.setWidget(container)
         body.addWidget(scroll, 1)
@@ -628,8 +535,7 @@ class UpdatesPage(QWidget):
     def _select(self, selected) -> None:
         for row in self.rows:
             row.set_expanded(row is selected)
-        if selected is not None:
-            self.detail_panel.set_dataset(selected.data)
+        self.detail_panel.set_dataset(selected.data if selected is not None else None)
 
     def _on_row_clicked(self, row: UpdateRow) -> None:
         if row.expanded:
@@ -639,6 +545,13 @@ class UpdatesPage(QWidget):
 
 
 UPDATES_STYLESHEET = """
+QLabel#emptyState {
+    color: #9aa5b1;
+    font-size: 13px;
+    padding: 32px;
+    border: 1px dashed #3a4552;
+    border-radius: 8px;
+}
 QFrame#statCard {
     background-color: #1a2027;
     border: 1px solid #3a4552;
