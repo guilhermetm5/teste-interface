@@ -23,6 +23,7 @@ class Sidebar(QFrame):
 
         self._button_group = QButtonGroup(self)
         self._button_group.setExclusive(True)
+        self._buttons = {}
 
         for index, item in enumerate(SIDEBAR_ITEMS):
             button = QPushButton("  " + item["label"])
@@ -35,8 +36,13 @@ class Sidebar(QFrame):
                 lambda _checked, item_id=item["id"]: self.item_selected.emit(item_id)
             )
             self._button_group.addButton(button)
+            self._buttons[item["id"]] = button
             layout.addWidget(button)
             if index == 0:
                 button.setChecked(True)
 
         layout.addStretch()
+
+    def select(self, item_id: str) -> None:
+        """Seleciona um item por código, como se o usuário tivesse clicado nele."""
+        self._buttons[item_id].click()

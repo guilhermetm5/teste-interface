@@ -14,6 +14,7 @@ from PySide6.QtWidgets import (
 from app.core.updater import UpdateCheckWorker
 from app.core.version import get_local_commit, pull_latest, restart_app
 from app.ui.catalogo_page import CatalogoPage
+from app.ui.home_page import HOME_STYLESHEET, HomePage
 from app.ui.sidebar import Sidebar
 from app.ui.updates_page import UPDATES_STYLESHEET, UpdatesPage
 
@@ -262,6 +263,7 @@ class MainWindow(QMainWindow):
         self.setStyleSheet(
             STYLESHEET.replace("ARROW_DOWN_PATH", arrow_down.as_posix())
             + UPDATES_STYLESHEET
+            + HOME_STYLESHEET
         )
 
         central = QWidget()
@@ -305,6 +307,9 @@ class MainWindow(QMainWindow):
         self.content_label.setObjectName("contentLabel")
         self._catalogo_page = CatalogoPage()
         self._updates_page = UpdatesPage()
+        self._home_page = HomePage()
+        self._home_page.navigate.connect(self.sidebar.select)
+        self.pages.addWidget(self._home_page)
         self.pages.addWidget(self._catalogo_page)
         self.pages.addWidget(self._updates_page)
         self.pages.addWidget(self.content_label)
@@ -320,8 +325,12 @@ class MainWindow(QMainWindow):
         if event.type() == QEvent.WindowStateChange:
             self._catalogo_page.side_panel.setVisible(self.isMaximized())
             self._updates_page.detail_panel.setVisible(self.isMaximized())
+            self._home_page.side_column.setVisible(self.isMaximized())
 
     def _on_item_selected(self, item_id: str) -> None:
+        if item_id == "home":
+            self.pages.setCurrentWidget(self._home_page)
+            return
         if item_id == "explore":
             self.pages.setCurrentWidget(self._catalogo_page)
             return
