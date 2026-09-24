@@ -308,7 +308,7 @@ class MainWindow(QMainWindow):
         self.pages.addWidget(self._catalogo_page)
         self.pages.addWidget(self._updates_page)
         self.pages.addWidget(self.content_label)
-        self.pages.setCurrentWidget(self._catalogo_page)
+        self._on_item_selected("home")
         body_layout.addWidget(self.pages, 1)
 
         self._local_commit = get_local_commit()
@@ -322,7 +322,7 @@ class MainWindow(QMainWindow):
             self._updates_page.detail_panel.setVisible(self.isMaximized())
 
     def _on_item_selected(self, item_id: str) -> None:
-        if item_id == "home":
+        if item_id == "explore":
             self.pages.setCurrentWidget(self._catalogo_page)
             return
         if item_id == "update":
