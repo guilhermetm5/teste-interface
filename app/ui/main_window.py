@@ -14,7 +14,9 @@ from PySide6.QtWidgets import (
 from app.core.updater import UpdateCheckWorker
 from app.core.version import get_local_commit, pull_latest, restart_app
 from app.ui.catalogo_page import CatalogoPage
+from app.ui.downloads_page import DOWNLOADS_STYLESHEET, DownloadsPage
 from app.ui.home_page import HOME_STYLESHEET, HomePage
+from app.ui.settings_page import SETTINGS_STYLESHEET, SettingsPage
 from app.ui.sidebar import Sidebar
 from app.ui.updates_page import UPDATES_STYLESHEET, UpdatesPage
 
@@ -264,6 +266,8 @@ class MainWindow(QMainWindow):
             STYLESHEET.replace("ARROW_DOWN_PATH", arrow_down.as_posix())
             + UPDATES_STYLESHEET
             + HOME_STYLESHEET
+            + DOWNLOADS_STYLESHEET
+            + SETTINGS_STYLESHEET
         )
 
         central = QWidget()
@@ -309,6 +313,11 @@ class MainWindow(QMainWindow):
         self._updates_page = UpdatesPage()
         self._home_page = HomePage()
         self._home_page.navigate.connect(self.sidebar.select)
+        self._downloads_page = DownloadsPage()
+        self._settings_page = SettingsPage()
+        self._settings_page.check_app_update.connect(self.check_for_update)
+        self.pages.addWidget(self._downloads_page)
+        self.pages.addWidget(self._settings_page)
         self.pages.addWidget(self._home_page)
         self.pages.addWidget(self._catalogo_page)
         self.pages.addWidget(self._updates_page)
@@ -326,6 +335,7 @@ class MainWindow(QMainWindow):
             self._catalogo_page.side_panel.setVisible(self.isMaximized())
             self._updates_page.detail_panel.setVisible(self.isMaximized())
             self._home_page.side_column.setVisible(self.isMaximized())
+            self._downloads_page.detail_panel.setVisible(self.isMaximized())
 
     def _on_item_selected(self, item_id: str) -> None:
         if item_id == "home":
@@ -333,6 +343,12 @@ class MainWindow(QMainWindow):
             return
         if item_id == "explore":
             self.pages.setCurrentWidget(self._catalogo_page)
+            return
+        if item_id == "config":
+            self.pages.setCurrentWidget(self._settings_page)
+            return
+        if item_id == "download":
+            self.pages.setCurrentWidget(self._downloads_page)
             return
         if item_id == "update":
             self.pages.setCurrentWidget(self._updates_page)
