@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from PySide6.QtCore import QSize, Qt
+from PySide6.QtCore import QSize, Qt, Signal
 from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QPushButton, QVBoxLayout
 
@@ -20,6 +20,9 @@ STATUS_LABELS = {
 class DatasetCard(QFrame):
     """Card horizontal: ícone | título + subtítulo + badges | status + botões."""
 
+    # Clique no card (fora dos botões): a página o usa para selecionar e mostrar os detalhes.
+    clicked = Signal(object)
+
     def __init__(
         self,
         title: str,
@@ -31,6 +34,8 @@ class DatasetCard(QFrame):
     ):
         super().__init__(parent)
         self.setObjectName("datasetCard")
+        self.setProperty("selected", False)
+        self.setCursor(Qt.PointingHandCursor)
         self.title = title
         self.subtitle = subtitle
         self.badges = badges
@@ -112,6 +117,16 @@ class DatasetCard(QFrame):
         # Reaplica o QSS, já que o seletor depende da propriedade dinâmica.
         self.status_label.style().unpolish(self.status_label)
         self.status_label.style().polish(self.status_label)
+
+    def set_selected(self, selected: bool) -> None:
+        self.setProperty("selected", selected)
+        self.style().unpolish(self)
+        self.style().polish(self)
+
+    def mousePressEvent(self, event) -> None:
+        if event.button() == Qt.LeftButton:
+            self.clicked.emit(self)
+        super().mousePressEvent(event)
 
     def matches(self, text: str) -> bool:
         haystack = " ".join([self.title, self.subtitle, *self.badges]).lower()
