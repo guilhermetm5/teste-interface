@@ -13,6 +13,10 @@ SETTINGS_VERSION = 1
 
 DEFAULTS = {
     "version": SETTINGS_VERSION,
+    "pipeline": {
+        # Pasta do labsin-dados-publicos-am (ou só a que contém o manifest.json). Vazio = não usar.
+        "pasta": "",
+    },
     "coleta": {
         "pasta_saida": str(Path.home() / "DadosAmazonas"),
         "pasta_por_dataset": True,
