@@ -5,14 +5,17 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QMainWindow,
+    QMessageBox,
     QStackedWidget,
     QVBoxLayout,
     QWidget,
 )
 
+from app.core import settings
+from app.core.pipeline import PipelineService, manifest_to_collects, read_manifest
 from app.core.updater import UpdateCheckWorker
 from app.core.version import get_local_commit, pull_latest, restart_app
-from app.ui.catalogo_page import CatalogoPage
+from app.ui.catalogo_page import NO_PIPELINE_MESSAGE, CatalogoPage
 from app.ui.downloads_page import DOWNLOADS_STYLESHEET, DownloadsPage
 from app.ui.home_page import HOME_STYLESHEET, HomePage
 from app.ui.settings_page import SETTINGS_STYLESHEET, SettingsPage
@@ -292,13 +295,66 @@ class MainWindow(QMainWindow):
         self._manual_check = False
         self.check_for_update()
 
+        # Pipeline de dados (opcional): se a pasta estiver configurada, Explorar e Downloads
+        # passam a mostrar dados reais no lugar dos exemplos.
+        self._pipeline = PipelineService(self)
+        self._pipeline.catalog_loaded.connect(self._on_pipeline_catalog)
+        self._pipeline.dataset_started.connect(
+            lambda name: self._catalogo_page.set_dataset_state(name, "processing"))
+        self._pipeline.dataset_finished.connect(self._on_pipeline_finished)
+        self._pipeline.failed.connect(self._on_pipeline_failed)
+        self._pipeline.busy_changed.connect(self._on_pipeline_busy)
+        self._catalogo_page.run_requested.connect(lambda name: self._pipeline.run([name]))
+        self._settings_page.saved.connect(self._reload_pipeline)
+        self._reload_pipeline()
+
     def _wait_update_worker(self) -> None:
         """Espera a checagem de atualização terminar antes de fechar/reiniciar.
         Encerrar com a QThread ainda rodando gera avisos "QThreadStorage: entry ... destroyed"."""
         if self._update_worker is not None and self._update_worker.isRunning():
             self._update_worker.wait(6000)  # a requisição tem timeout de 5s
 
+    # --- pipeline de dados ----------------------------------------------------
+
+    def _reload_pipeline(self) -> None:
+        folder = settings.load()["pipeline"]["pasta"]
+        self._pipeline.configure(folder)
+        if not folder.strip():
+            self._show_no_pipeline()  # sem pasta: estados vazios em vez de dados
+            return
+        self._pipeline.refresh()
+
+    def _show_no_pipeline(self) -> None:
+        self._catalogo_page.show_empty(NO_PIPELINE_MESSAGE)
+        self._downloads_page.set_collects([])
+        self._home_page.set_manifest(None)
+
+    def _on_pipeline_catalog(self, manifest: dict, can_run: bool) -> None:
+        self._home_page.set_manifest(manifest)
+        self._catalogo_page.set_pipeline_datasets(manifest["datasets"], can_run)
+        # O processo que listou o catálogo ainda pode estar terminando: só libera o "Coletar"
+        # quando ele acabar (_on_pipeline_busy), senão o clique seria ignorado.
+        self._catalogo_page.set_collect_enabled(can_run and not self._pipeline.busy)
+        self._downloads_page.set_collects(manifest_to_collects(manifest))
+
+    def _on_pipeline_finished(self, name: str, event: dict) -> None:
+        ok = event["estado"] == "ok"
+        self._catalogo_page.set_dataset_state(name, "updated" if ok else "error", event.get("erro") or "")
+        manifest = read_manifest(self._pipeline.folder)
+        if manifest is not None:
+            self._downloads_page.set_collects(manifest_to_collects(manifest))
+            self._home_page.set_manifest(manifest)
+
+    def _on_pipeline_failed(self, message: str) -> None:
+        QMessageBox.warning(self, "Pipeline de dados", message)
+        if not self._catalogo_page.dataset_cards:
+            self._catalogo_page.show_empty(f"Não foi possível carregar os datasets: {message}")
+
+    def _on_pipeline_busy(self, busy: bool) -> None:
+        self._catalogo_page.set_collect_enabled(not busy and self._pipeline.can_run())
+
     def closeEvent(self, event) -> None:
+        self._pipeline.shutdown()
         self._wait_update_worker()
         super().closeEvent(event)
 
