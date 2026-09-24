@@ -53,11 +53,11 @@ def read_manifest(folder_text: str) -> dict | None:
     return data if data.get("schema_version") == MANIFEST_SCHEMA else None
 
 
-def _fmt_int(n: int) -> str:
+def fmt_int(n: int) -> str:
     return f"{n:,}".replace(",", ".")
 
 
-def _fmt_size(n: int) -> str:
+def fmt_size(n: int) -> str:
     if n < 1024:
         return f"{n} B"
     if n < 1024 * 1024:
@@ -100,13 +100,13 @@ def manifest_to_collects(manifest: dict) -> list[dict]:
             "trigger": "Coleta manual",
             "versions": [],  # o pipeline ainda não guarda histórico
             "files": [
-                (f["arquivo"], _fmt_size(f["tamanho_bytes"]), f"{_fmt_int(f['linhas'])} linhas",
+                (f["arquivo"], fmt_size(f["tamanho_bytes"]), f"{fmt_int(f['linhas'])} linhas",
                  "dim" if f["tabela"].startswith("dim_") else "fact")
                 for f in files
             ],
-            "total_fact": _fmt_int(rows["fact"]) if by_kind["fact"] else "—",
-            "total_dim": _fmt_int(rows["dim"]) if by_kind["dim"] else "—",
-            "total_size": _fmt_size(sum(f["tamanho_bytes"] for f in files)),
+            "total_fact": fmt_int(rows["fact"]) if by_kind["fact"] else "—",
+            "total_dim": fmt_int(rows["dim"]) if by_kind["dim"] else "—",
+            "total_size": fmt_size(sum(f["tamanho_bytes"] for f in files)),
         }))
     # Mais recentes primeiro. Ordena pelo texto ISO original, já que dd/mm/aaaa não ordena.
     collects.sort(key=lambda pair: pair[0], reverse=True)
