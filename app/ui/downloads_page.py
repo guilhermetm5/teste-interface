@@ -16,65 +16,12 @@ from PySide6.QtWidgets import (
 
 from app.ui.animated_combo import AnimatedComboBox
 from app.ui.home_page import hline
-from app.ui.updates_page import clear_layout, make_icon_button, make_label, repolish
+from app.ui.updates_page import clear_layout, make_empty_state, make_icon_button, make_label, repolish
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
-# Dados de exemplo (layout apenas). Arquivo: (nome, tamanho, linhas, tipo "fact"|"dim").
-COLLECTS = [
-    {
-        "title": "População dos municípios", "source": "IBGE · API",
-        "when": "23/09/2026 16:37", "trigger": "Coleta manual",
-        "files": [
-            ("fato_populacao.csv", "8,4 MB", "63.248 linhas", "fact"),
-            ("dim_municipio.csv", "2,1 MB", "62 linhas", "dim"),
-        ],
-        "total_fact": "63.248", "total_dim": "62", "total_size": "10,5 MB",
-    },
-    {
-        "title": "Saúde por município", "source": "DATASUS · API",
-        "when": "22/09/2026 14:12", "trigger": "Coleta automática",
-        "files": [
-            ("fato_saude.csv", "12,6 MB", "98.421 linhas", "fact"),
-            ("dim_municipio.csv", "1,8 MB", "62 linhas", "dim"),
-        ],
-        "total_fact": "98.421", "total_dim": "62", "total_size": "14,4 MB",
-    },
-    {
-        "title": "Educação básica", "source": "INEP · API",
-        "when": "21/09/2026 09:51", "trigger": "Coleta automática",
-        "files": [
-            ("fato_educacao.csv", "6,3 MB", "45.892 linhas", "fact"),
-            ("dim_municipio.csv", "1,7 MB", "62 linhas", "dim"),
-        ],
-        "total_fact": "45.892", "total_dim": "62", "total_size": "8,0 MB",
-    },
-    {
-        "title": "PIB municipal", "source": "IBGE · API",
-        "when": "20/09/2026 11:03", "trigger": "Coleta manual",
-        "files": [
-            ("fato_pib.csv", "7,8 MB", "56.203 linhas", "fact"),
-            ("dim_municipio.csv", "1,6 MB", "62 linhas", "dim"),
-        ],
-        "total_fact": "56.203", "total_dim": "62", "total_size": "9,4 MB",
-    },
-    {
-        "title": "Desmatamento", "source": "INPE · API",
-        "when": "19/09/2026 15:27", "trigger": "Coleta automática",
-        "files": [
-            ("fato_desmatamento.csv", "5,2 MB", "32.671 linhas", "fact"),
-            ("dim_municipio.csv", "1,5 MB", "62 linhas", "dim"),
-        ],
-        "total_fact": "32.671", "total_dim": "62", "total_size": "6,7 MB",
-    },
-]
-
-# Versões anteriores de exemplo, iguais para todas as coletas.
-VERSIONS = [
-    ("20/09/2026", "62.000 linhas", "9,8 MB"),
-    ("12/09/2026", "61.342 linhas", "9,6 MB"),
-    ("05/09/2026", "60.781 linhas", "9,3 MB"),
-]
+# Cada arquivo de uma coleta: (nome, tamanho, linhas, tipo "fact"|"dim").
+NO_COLLECTS_MESSAGE = "Nenhuma coleta ainda. Colete um dataset em Explorar dados."
 
 FILTER_DEFAULTS = ["Todos os datasets", "Todos os tipos", "Todos os status"]
 
@@ -243,15 +190,8 @@ class CollectDetailPanel(QFrame):
 
         # Versões anteriores
         layout.addWidget(make_label("◷  Versões anteriores", "panelSection"))
-        versions = QGridLayout()
-        versions.setHorizontalSpacing(12)
-        versions.setVerticalSpacing(6)
-        for r, (date, lines, size) in enumerate(VERSIONS):
-            versions.addWidget(make_label(date, "rowValue"), r, 0)
-            versions.addWidget(make_label(lines, "metricLabel"), r, 1, Qt.AlignRight)
-            versions.addWidget(make_label(size, "metricLabel"), r, 2, Qt.AlignRight)
-        versions.setColumnStretch(1, 1)
-        layout.addLayout(versions)
+        self.versions_box = QVBoxLayout()  # preenchido em set_collect()
+        layout.addLayout(self.versions_box)
         self.history_button = QPushButton("Ver histórico completo →")
         self.history_button.setObjectName("linkButton")
         self.history_button.setCursor(Qt.PointingHandCursor)
@@ -267,14 +207,40 @@ class CollectDetailPanel(QFrame):
             layout.addWidget(button)
         layout.addStretch()
 
-    def set_collect(self, d: dict) -> None:
+    def _set_versions(self, versions: list) -> None:
+        """Lista de versões anteriores (data, linhas, tamanho). Vazia = ainda não há histórico."""
+        clear_layout(self.versions_box)
+        if not versions:
+            note = make_label("Sem versões anteriores: o pipeline ainda não guarda o histórico.", "datasetSubtitle")
+            note.setWordWrap(True)
+            self.versions_box.addWidget(note)
+            self.history_button.setVisible(False)
+            return
+        self.history_button.setVisible(True)
+        grid = QGridLayout()
+        grid.setHorizontalSpacing(12)
+        grid.setVerticalSpacing(6)
+        for r, (date, lines, size) in enumerate(versions):
+            grid.addWidget(make_label(date, "rowValue"), r, 0)
+            grid.addWidget(make_label(lines, "metricLabel"), r, 1, Qt.AlignRight)
+            grid.addWidget(make_label(size, "metricLabel"), r, 2, Qt.AlignRight)
+        grid.setColumnStretch(1, 1)
+        self.versions_box.addLayout(grid)
+
+    def set_collect(self, d: dict | None) -> None:
+        if d is None:  # nenhuma coleta selecionada
+            d = {"title": "Nenhuma coleta selecionada", "source": "", "when": "", "trigger": "",
+                 "files": [], "total_fact": "—", "total_dim": "—", "total_size": "—", "versions": []}
         self.title.setText(d["title"])
         self.source.setText(d["source"])
-        self.when.setText(f"▦  {d['when']}")
-        self.trigger.setText(f"◔  {d['trigger']}")
-        self.summary["datasets"].setText("2 arquivos")
+        self.when.setText(f"▦  {d['when']}" if d["when"] else "")
+        self.trigger.setText(f"◔  {d['trigger']}" if d["trigger"] else "")
+        n = len(d["files"])
+        self.summary["datasets"].setText(f"{n} arquivo{'s' if n != 1 else ''}")
         for key in ("total_fact", "total_dim", "total_size"):
             self.summary[key].setText(d[key])
+
+        self._set_versions(d.get("versions", []))
 
         clear_layout(self.files_layout)
         for name, size, lines, kind in d["files"]:
@@ -326,8 +292,7 @@ class DownloadsPage(QWidget):
             combo.setObjectName("filterCombo")
             combo.addItem(default)
             if i == 0:
-                combo.addItems([c["title"] for c in COLLECTS])
-                combo.currentIndexChanged.connect(self._apply_filters)
+                combo.currentIndexChanged.connect(self._apply_filters)  # opções: set_collects()
             elif i == 1:
                 combo.addItem("CSV")
             else:
@@ -357,21 +322,41 @@ class DownloadsPage(QWidget):
         scroll.setFrameShape(QFrame.NoFrame)
         container = QWidget()
         container.setObjectName("cardsContainer")
-        cards_layout = QVBoxLayout(container)
-        cards_layout.setContentsMargins(0, 0, 0, 0)
-        cards_layout.setSpacing(10)
+        self.cards_layout = QVBoxLayout(container)
+        self.cards_layout.setContentsMargins(0, 0, 0, 0)
+        self.cards_layout.setSpacing(10)
         self.cards = []
-        for data in COLLECTS:
-            card = CollectCard(data)
-            card.clicked.connect(self._select)
-            cards_layout.addWidget(card)
-            self.cards.append(card)
-        cards_layout.addStretch()
         scroll.setWidget(container)
         body.addWidget(scroll, 1)
 
+        self.set_collects([])
+
+    def set_collects(self, collects: list) -> None:
+        """Substitui a lista de coletas (exemplo ou reais, vindas do manifesto do pipeline)."""
+        clear_layout(self.cards_layout)
+        self.cards = []
+        for data in collects:
+            card = CollectCard(data)
+            card.clicked.connect(self._select)
+            self.cards_layout.addWidget(card)
+            self.cards.append(card)
+        if not collects:
+            self.cards_layout.addWidget(make_empty_state(NO_COLLECTS_MESSAGE))
+        self.cards_layout.addStretch()
+
+        # O filtro de datasets acompanha os títulos que existem agora.
+        combo = self.filter_combos[0]
+        combo.blockSignals(True)
+        combo.clear()
+        combo.addItem(FILTER_DEFAULTS[0])
+        combo.addItems(sorted({c["title"] for c in collects}))
+        combo.blockSignals(False)
+
         self._apply_filters()
-        self._select(self.cards[0])
+        if self.cards:
+            self._select(self.cards[0])
+        else:
+            self.detail_panel.set_collect(None)
 
     def _build_header(self) -> QHBoxLayout:
         h = QHBoxLayout()

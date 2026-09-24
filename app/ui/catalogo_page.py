@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from PySide6.QtCore import QSize
+from PySide6.QtCore import QSize, Signal
 from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import (
     QFrame,
@@ -14,9 +14,11 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from app.core.pipeline import STATE_TO_BADGE
 from app.ui.animated_combo import AnimatedComboBox
 from app.ui.dataset_card import DatasetCard
 from app.ui.side_panel import SidePanel
+from app.ui.updates_page import clear_layout, make_empty_state
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
@@ -39,53 +41,13 @@ FILTERS = [
     ("Última atualização", []),
 ]
 
-CATALOGO_ITEMS = [
-    {
-        "title": "População dos municípios",
-        "subtitle": "Estimativas populacionais dos municípios do Amazonas.",
-        "badges": ["IBGE", "Demografia", "CSV"],
-        "status": "updated",
-    },
-    {
-        "title": "Matrículas por município",
-        "subtitle": "Número de matrículas na educação básica, por município.",
-        "badges": ["INEP", "EDUCAÇÃO", "CSV"],
-        "status": "update_available",
-    },
-    {
-        "title": "Internações hospitalares",
-        "subtitle": "Registros de internações na rede de saúde do Amazonas.",
-        "badges": ["DATASUS", "SAÚDE", "CSV"],
-        "status": "error",
-    },
-    {
-        "title": "Ocorrências criminais",
-        "subtitle": "Ocorrências registradas por tipo e por município.",
-        "badges": ["SSP-AM", "SEGURANÇA", "CSV"],
-        "status": "unchecked",
-    },
-    {
-        "title": "Focos de queimadas",
-        "subtitle": "Focos de calor detectados por satélite no estado.",
-        "badges": ["INPE", "MEIO AMBIENTE", "CSV"],
-        "status": "processing",
-    },
-    {
-        "title": "Acesso a água e esgoto",
-        "subtitle": "Indicadores de água e esgoto por município.",
-        "badges": ["SNIS", "SANEAMENTO", "CSV"],
-        "status": "update_available",
-    },
-    {
-        "title": "Renda e emprego",
-        "subtitle": "Indicadores de renda, ocupação e PIB dos municípios.",
-        "badges": ["IBGE", "SOCIOECONOMICOS", "CSV"],
-        "status": "unchecked",
-    },
-]
+NO_PIPELINE_MESSAGE = "Nenhum dataset carregado. Informe a pasta do pipeline em Configurações."
 
 
 class CatalogoPage(QWidget):
+    # Usuário pediu para coletar um dataset do pipeline (nome no catálogo).
+    run_requested = Signal(str)
+
     def __init__(self, parent=None):
         super().__init__(parent)
         # Grade: título/subtítulo na linha 0; o restante e o side panel na linha 1,
@@ -167,19 +129,63 @@ class CatalogoPage(QWidget):
 
         cards_container = QWidget()
         cards_container.setObjectName("cardsContainer")
-        cards_layout = QVBoxLayout(cards_container)
-        cards_layout.setContentsMargins(0, 0, 0, 0)
-        cards_layout.setSpacing(8)
+        self.cards_layout = QVBoxLayout(cards_container)
+        self.cards_layout.setContentsMargins(0, 0, 0, 0)
+        self.cards_layout.setSpacing(8)
 
         self.dataset_cards = []
-        for item in CATALOGO_ITEMS:
-            card = DatasetCard(**item)
-            cards_layout.addWidget(card)
-            self.dataset_cards.append(card)
-        cards_layout.addStretch()
+        self.show_empty(NO_PIPELINE_MESSAGE)
 
         scroll.setWidget(cards_container)
         layout.addWidget(scroll, 1)
+
+    def _show_cards(self, cards: list, empty_text: str = "") -> None:
+        clear_layout(self.cards_layout)
+        self.dataset_cards = cards
+        for card in cards:
+            self.cards_layout.addWidget(card)
+        if not cards:
+            self.cards_layout.addWidget(make_empty_state(empty_text or NO_PIPELINE_MESSAGE))
+        self.cards_layout.addStretch()
+        self._filter_items(self.search_input.text())
+
+    def show_empty(self, text: str) -> None:
+        """Sem cards: mostra uma mensagem explicando por quê."""
+        self._show_cards([], text)
+
+    def set_pipeline_datasets(self, datasets: dict, can_run: bool) -> None:
+        """Mostra os datasets reais do pipeline (nome -> dados do manifesto)."""
+        cards = []
+        for name, data in datasets.items():
+            summary = data["descricao"].split(". ")[0].strip()
+            card = DatasetCard(
+                title=data.get("titulo") or name,
+                subtitle=summary if len(summary) <= 120 else summary[:117] + "...",
+                badges=[data["fonte"], data["granularidade"], data["periodicidade"]],
+                status=STATE_TO_BADGE.get(data["estado"], "unchecked"),
+            )
+            card.setToolTip(data["descricao"])
+            card.dataset_name = name
+            card.download_button.setText("  Coletar")
+            card.download_button.setEnabled(can_run)
+            if not can_run:
+                card.download_button.setToolTip("Pipeline não encontrado nesta máquina (modo leitor).")
+            card.download_button.clicked.connect(lambda _c=False, n=name: self.run_requested.emit(n))
+            cards.append(card)
+        self._show_cards(cards, "O pipeline não tem datasets disponíveis para coletar.")
+
+    def set_dataset_state(self, name: str, badge_state: str, detail: str = "") -> None:
+        """Atualiza o badge de um card; `detail` (ex.: mensagem de erro) vira o tooltip do badge."""
+        for card in self.dataset_cards:
+            if getattr(card, "dataset_name", None) == name:
+                card.set_status(badge_state)
+                card.status_label.setToolTip(detail)
+
+    def set_collect_enabled(self, enabled: bool) -> None:
+        """Habilita ou desabilita os botões "Coletar" (ex.: enquanto uma coleta roda)."""
+        for card in self.dataset_cards:
+            if hasattr(card, "dataset_name"):
+                card.download_button.setEnabled(enabled)
 
     def _filter_items(self, text: str) -> None:
         text = text.strip().lower()
