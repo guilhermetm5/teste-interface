@@ -15,6 +15,7 @@ from app.core.updater import UpdateCheckWorker
 from app.core.version import get_local_commit, pull_latest, restart_app
 from app.ui.catalogo_page import CatalogoPage
 from app.ui.sidebar import Sidebar
+from app.ui.updates_page import UPDATES_STYLESHEET, UpdatesPage
 
 STYLESHEET = """
 QMainWindow, QWidget#content {
@@ -260,6 +261,7 @@ class MainWindow(QMainWindow):
         arrow_down = Path(__file__).resolve().parents[2] / "arrow_down.png"
         self.setStyleSheet(
             STYLESHEET.replace("ARROW_DOWN_PATH", arrow_down.as_posix())
+            + UPDATES_STYLESHEET
         )
 
         central = QWidget()
@@ -302,7 +304,9 @@ class MainWindow(QMainWindow):
         self.content_label = QLabel()
         self.content_label.setObjectName("contentLabel")
         self._catalogo_page = CatalogoPage()
+        self._updates_page = UpdatesPage()
         self.pages.addWidget(self._catalogo_page)
+        self.pages.addWidget(self._updates_page)
         self.pages.addWidget(self.content_label)
         self.pages.setCurrentWidget(self._catalogo_page)
         body_layout.addWidget(self.pages, 1)
@@ -315,10 +319,14 @@ class MainWindow(QMainWindow):
         super().changeEvent(event)
         if event.type() == QEvent.WindowStateChange:
             self._catalogo_page.side_panel.setVisible(self.isMaximized())
+            self._updates_page.detail_panel.setVisible(self.isMaximized())
 
     def _on_item_selected(self, item_id: str) -> None:
         if item_id == "home":
             self.pages.setCurrentWidget(self._catalogo_page)
+            return
+        if item_id == "update":
+            self.pages.setCurrentWidget(self._updates_page)
             return
         self.content_label.setText(f"Você selecionou: {item_id}")
         self.pages.setCurrentWidget(self.content_label)
