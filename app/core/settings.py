@@ -13,6 +13,10 @@ SETTINGS_VERSION = 1
 
 DEFAULTS = {
     "version": SETTINGS_VERSION,
+    "aparencia": {
+        # "escuro" | "claro"
+        "tema": "escuro",
+    },
     "pipeline": {
         # Pasta do labsin-dados-publicos-am (ou só a que contém o manifest.json). Vazio = não usar.
         "pasta": "",

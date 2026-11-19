@@ -1,16 +1,13 @@
-from pathlib import Path
-
 from PySide6.QtCore import QSize, Signal
-from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import QButtonGroup, QFrame, QPushButton, QVBoxLayout
 
 from app.ui.sidebar_items import SIDEBAR_ITEMS
-
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
+from app.ui.theme import DARK, ICON_COLORS, LIGHT, tinted_icon
 
 
 class Sidebar(QFrame):
     item_selected = Signal(str)
+    theme_toggle_requested = Signal()
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -24,13 +21,14 @@ class Sidebar(QFrame):
         self._button_group = QButtonGroup(self)
         self._button_group.setExclusive(True)
         self._buttons = {}
+        self._icon_files = {}
 
         for index, item in enumerate(SIDEBAR_ITEMS):
             button = QPushButton("  " + item["label"])
             button.setObjectName("sidebarButton")
             button.setCheckable(True)
             if "icon" in item:
-                button.setIcon(QIcon(str(PROJECT_ROOT / item["icon"])))
+                self._icon_files[button] = item["icon"]
                 button.setIconSize(QSize(18, 18))
             button.clicked.connect(
                 lambda _checked, item_id=item["id"]: self.item_selected.emit(item_id)
@@ -42,6 +40,24 @@ class Sidebar(QFrame):
                 button.setChecked(True)
 
         layout.addStretch()
+
+        # Alterna o tema: mostra o sol no escuro (vai para o claro) e a lua no claro.
+        self._theme_button = QPushButton()
+        self._theme_button.setObjectName("sidebarButton")
+        self._theme_button.setIconSize(QSize(18, 18))
+        self._theme_button.clicked.connect(self.theme_toggle_requested)
+        layout.addWidget(self._theme_button)
+
+        self.set_theme(DARK)
+
+    def set_theme(self, theme: str) -> None:
+        """Recolore os ícones para o tema e ajusta o botão que alterna o tema."""
+        color = ICON_COLORS[theme]
+        for button, filename in self._icon_files.items():
+            button.setIcon(tinted_icon(filename, color))
+        to_light = theme != LIGHT
+        self._theme_button.setIcon(tinted_icon("sol.png" if to_light else "lua.png", color))
+        self._theme_button.setText("  Tema claro" if to_light else "  Tema escuro")
 
     def select(self, item_id: str) -> None:
         """Seleciona um item por código, como se o usuário tivesse clicado nele."""

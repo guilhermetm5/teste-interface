@@ -1,27 +1,10 @@
 from pathlib import Path
 
-from PySide6.QtCore import QEvent
-from PySide6.QtWidgets import (
-    QHBoxLayout,
-    QLabel,
-    QMainWindow,
-    QMessageBox,
-    QStackedWidget,
-    QVBoxLayout,
-    QWidget,
-)
+from PySide6.QtWidgets import QHBoxLayout, QMainWindow, QWidget
 
 from app.core import settings
-from app.core.pipeline import PipelineService, manifest_to_collects, read_manifest
-from app.core.updater import UpdateCheckWorker
-from app.core.version import get_local_commit, pull_latest, restart_app
-from app.ui.catalogo_page import NO_PIPELINE_MESSAGE, CatalogoPage
-from app.ui.dataset_details import DETAILS_STYLESHEET
-from app.ui.downloads_page import DOWNLOADS_STYLESHEET, DownloadsPage
-from app.ui.home_page import HOME_STYLESHEET, HomePage
-from app.ui.settings_page import SETTINGS_STYLESHEET, SettingsPage
 from app.ui.sidebar import Sidebar
-from app.ui.updates_page import UPDATES_STYLESHEET, UpdatesPage
+from app.ui.theme import DARK, LIGHT, apply_theme
 
 STYLESHEET = """
 QMainWindow, QWidget#content {
@@ -219,7 +202,7 @@ QPushButton#cardActionButton:pressed {
 }
 QPushButton#cardDownloadButton {
     background-color: #3a6ea5;
-    color: #ffffff;
+    color: #fefefe;
     border: none;
     border-radius: 4px;
     padding: 6px 12px;
@@ -244,188 +227,36 @@ class MainWindow(QMainWindow):
         self.setWindowTitle("Dados do Amazonas")
         self.resize(900, 600)
         arrow_down = Path(__file__).resolve().parents[2] / "arrow_down.png"
-        self.setStyleSheet(
-            STYLESHEET.replace("ARROW_DOWN_PATH", arrow_down.as_posix())
-            + UPDATES_STYLESHEET
-            + HOME_STYLESHEET
-            + DOWNLOADS_STYLESHEET
-            + SETTINGS_STYLESHEET
-            + DETAILS_STYLESHEET
-        )
+        self._stylesheet = STYLESHEET.replace("ARROW_DOWN_PATH", arrow_down.as_posix())
 
         central = QWidget()
         central.setObjectName("content")
         self.setCentralWidget(central)
 
-        root_layout = QVBoxLayout(central)
-        root_layout.setContentsMargins(0, 0, 0, 0)
-        root_layout.setSpacing(0)
-
-        body = QWidget()
-        body_layout = QHBoxLayout(body)
-        body_layout.setContentsMargins(0, 0, 0, 0)
-        body_layout.setSpacing(0)
-        root_layout.addWidget(body)
+        layout = QHBoxLayout(central)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
 
         self.sidebar = Sidebar()
-        self.sidebar.item_selected.connect(self._on_item_selected)
-        body_layout.addWidget(self.sidebar)
+        self.sidebar.theme_toggle_requested.connect(self._toggle_theme)
+        layout.addWidget(self.sidebar)
+        layout.addStretch(1)
 
-        self.pages = QStackedWidget()
-        self.content_label = QLabel()
-        self.content_label.setObjectName("contentLabel")
-        self._catalogo_page = CatalogoPage()
-        self._updates_page = UpdatesPage()
-        self._home_page = HomePage()
-        self._home_page.navigate.connect(self.sidebar.select)
-        self._home_page.update_requested.connect(self._on_update_clicked)
-        self._downloads_page = DownloadsPage()
-        self._settings_page = SettingsPage()
-        self._settings_page.check_app_update.connect(lambda: self.check_for_update(manual=True))
-        self._settings_page.update_requested.connect(self._on_update_clicked)
-        self.pages.addWidget(self._downloads_page)
-        self.pages.addWidget(self._settings_page)
-        self.pages.addWidget(self._home_page)
-        self.pages.addWidget(self._catalogo_page)
-        self.pages.addWidget(self._updates_page)
-        self.pages.addWidget(self.content_label)
-        self._on_item_selected("home")
-        body_layout.addWidget(self.pages, 1)
+        self._theme = settings.load()["aparencia"]["tema"]
+        if self._theme not in (DARK, LIGHT):
+            self._theme = DARK
+        self._apply_theme()
 
-        self._local_commit = get_local_commit()
-        self._update_worker: UpdateCheckWorker | None = None
-        self._manual_check = False
-        self.check_for_update()
+    def _apply_theme(self) -> None:
+        self.setStyleSheet(apply_theme(self._stylesheet, self._theme))
+        self.sidebar.set_theme(self._theme)
 
-        # Pipeline de dados (opcional): se a pasta estiver configurada, Explorar e Downloads
-        # passam a mostrar dados reais no lugar dos exemplos.
-        self._pipeline = PipelineService(self)
-        self._pipeline.catalog_loaded.connect(self._on_pipeline_catalog)
-        self._pipeline.dataset_started.connect(
-            lambda name: self._catalogo_page.set_dataset_state(name, "processing"))
-        self._pipeline.dataset_finished.connect(self._on_pipeline_finished)
-        self._pipeline.failed.connect(self._on_pipeline_failed)
-        self._pipeline.busy_changed.connect(self._on_pipeline_busy)
-        self._catalogo_page.run_requested.connect(lambda name: self._pipeline.run([name]))
-        self._settings_page.saved.connect(self._reload_pipeline)
-        self._reload_pipeline()
-
-    def _wait_update_worker(self) -> None:
-        """Espera a checagem de atualização terminar antes de fechar/reiniciar.
-        Encerrar com a QThread ainda rodando gera avisos "QThreadStorage: entry ... destroyed"."""
-        if self._update_worker is not None and self._update_worker.isRunning():
-            self._update_worker.wait(6000)  # a requisição tem timeout de 5s
-
-    # --- pipeline de dados ----------------------------------------------------
-
-    def _reload_pipeline(self) -> None:
-        folder = settings.load()["pipeline"]["pasta"]
-        self._pipeline.configure(folder)
-        if not folder.strip():
-            self._show_no_pipeline()  # sem pasta: estados vazios em vez de dados
-            return
-        self._pipeline.refresh()
-
-    def _show_no_pipeline(self) -> None:
-        self._catalogo_page.show_empty(NO_PIPELINE_MESSAGE)
-        self._downloads_page.set_collects([])
-        self._home_page.set_manifest(None)
-
-    def _on_pipeline_catalog(self, manifest: dict, can_run: bool) -> None:
-        self._home_page.set_manifest(manifest)
-        self._catalogo_page.set_pipeline_datasets(manifest["datasets"], can_run)
-        # O processo que listou o catálogo ainda pode estar terminando: só libera o "Coletar"
-        # quando ele acabar (_on_pipeline_busy), senão o clique seria ignorado.
-        self._catalogo_page.set_collect_enabled(can_run and not self._pipeline.busy)
-        self._downloads_page.set_collects(manifest_to_collects(manifest))
-
-    def _on_pipeline_finished(self, name: str, event: dict) -> None:
-        ok = event["estado"] == "ok"
-        self._catalogo_page.set_dataset_state(name, "updated" if ok else "error", event.get("erro") or "")
-        manifest = read_manifest(self._pipeline.folder)
-        if manifest is not None:
-            self._downloads_page.set_collects(manifest_to_collects(manifest))
-            self._home_page.set_manifest(manifest)
-            self._catalogo_page.update_datasets(manifest["datasets"])  # detalhes mostram a coleta nova
-
-    def _on_pipeline_failed(self, message: str) -> None:
-        QMessageBox.warning(self, "Pipeline de dados", message)
-        if not self._catalogo_page.dataset_cards:
-            self._catalogo_page.show_empty(f"Não foi possível carregar os datasets: {message}")
-
-    def _on_pipeline_busy(self, busy: bool) -> None:
-        self._catalogo_page.set_collect_enabled(not busy and self._pipeline.can_run())
-
-    def closeEvent(self, event) -> None:
-        self._pipeline.shutdown()
-        self._wait_update_worker()
-        super().closeEvent(event)
-
-    def changeEvent(self, event) -> None:
-        super().changeEvent(event)
-        if event.type() == QEvent.WindowStateChange:
-            self._catalogo_page.side_panel.setVisible(self.isMaximized())
-            self._updates_page.detail_panel.setVisible(self.isMaximized())
-            self._home_page.side_column.setVisible(self.isMaximized())
-            self._downloads_page.detail_panel.setVisible(self.isMaximized())
-
-    def _on_item_selected(self, item_id: str) -> None:
-        if item_id == "home":
-            self.pages.setCurrentWidget(self._home_page)
-            return
-        if item_id == "explore":
-            self.pages.setCurrentWidget(self._catalogo_page)
-            return
-        if item_id == "config":
-            self.pages.setCurrentWidget(self._settings_page)
-            return
-        if item_id == "download":
-            self.pages.setCurrentWidget(self._downloads_page)
-            return
-        if item_id == "update":
-            self.pages.setCurrentWidget(self._updates_page)
-            return
-        self.content_label.setText(f"Você selecionou: {item_id}")
-        self.pages.setCurrentWidget(self.content_label)
-
-    def check_for_update(self, manual: bool = False) -> None:
-        """Consulta o GitHub em segundo plano. `manual` indica que o usuário pediu a checagem
-        (então mostramos o resultado mesmo quando não há atualização)."""
-        self._manual_check = manual
-        self._update_worker = UpdateCheckWorker()
-        self._update_worker.finished_ok.connect(self._on_update_check_ok)
-        self._update_worker.finished_error.connect(self._on_update_check_error)
-        self._update_worker.start()
-
-    def _on_update_check_ok(self, info: dict) -> None:
-        if self._local_commit and info["sha"] == self._local_commit:
-            self._home_page.set_update_available(False)
-            self._settings_page.set_update_available(None)
-            if self._manual_check:
-                self._settings_page.show_update_message("Você já está na versão mais recente.")
-            return
-        # Há versão nova: o botão aparece no Início e em Configurações > Aplicativo.
-        self._home_page.set_update_available(True)
-        self._settings_page.set_update_available(info)
-        if self._manual_check:
-            self._settings_page.show_update_message("")
-
-    def _on_update_check_error(self, message: str) -> None:
-        if self._manual_check:
-            self._settings_page.show_update_message("Não foi possível verificar atualizações.")
-
-    def _on_update_clicked(self) -> None:
-        self._home_page.set_update_busy(True)
-        self._settings_page.set_update_busy(True)
-
-        success, message = pull_latest()
-
-        if not success:
-            self._home_page.set_update_busy(False)
-            self._settings_page.set_update_busy(False)
-            self._settings_page.show_update_message(f"Falha ao atualizar: {message}")
-            self.sidebar.select("config")  # a mensagem de erro fica em Configurações
-            return
-
-        self._wait_update_worker()
-        restart_app()
+    def _toggle_theme(self) -> None:
+        self._theme = DARK if self._theme == LIGHT else LIGHT
+        self._apply_theme()
+        current = settings.load()
+        current["aparencia"]["tema"] = self._theme
+        try:
+            settings.save(current)
+        except OSError:
+            pass  # sem permissão para gravar: o tema vale só nesta sessão
