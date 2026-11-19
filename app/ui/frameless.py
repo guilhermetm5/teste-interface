@@ -3,6 +3,7 @@ from PySide6.QtGui import QColor, QIcon, QPainter, QPainterPath, QPen, QPixmap
 from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QPushButton, QWidget
 
 RESIZE_MARGIN = 6
+TITLE_BAR_HEIGHT = 32
 
 TITLE_BAR_STYLESHEET = """
 QWidget#content {
@@ -76,7 +77,7 @@ class TitleBar(QFrame):
     def __init__(self, window: QWidget, title: str):
         super().__init__()
         self.setObjectName("titleBar")
-        self.setFixedHeight(32)
+        self.setFixedHeight(TITLE_BAR_HEIGHT)
         self._window = window
 
         layout = QHBoxLayout(self)
@@ -102,7 +103,7 @@ class TitleBar(QFrame):
         button = QPushButton()
         button.setObjectName(name)
         button.setIconSize(QSize(12, 12))
-        button.setFixedSize(46, 32)
+        button.setFixedSize(46, TITLE_BAR_HEIGHT)
         button.setFocusPolicy(Qt.NoFocus)
         button.clicked.connect(slot)
         return button

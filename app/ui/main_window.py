@@ -1,10 +1,26 @@
 from pathlib import Path
 
-from PySide6.QtCore import QEvent, Qt
-from PySide6.QtWidgets import QHBoxLayout, QMainWindow, QVBoxLayout, QWidget
+from PySide6.QtCore import QEasingCurve, QEvent, QPropertyAnimation, QRect, Qt, QTimer
+from PySide6.QtGui import QCursor, QGuiApplication
+from PySide6.QtWidgets import (
+    QApplication,
+    QFrame,
+    QHBoxLayout,
+    QMainWindow,
+    QScrollArea,
+    QSizePolicy,
+    QVBoxLayout,
+    QWidget,
+)
 
 from app.core import settings
-from app.ui.frameless import RESIZE_MARGIN, TITLE_BAR_STYLESHEET, ResizableContainer, TitleBar
+from app.ui.frameless import (
+    RESIZE_MARGIN,
+    TITLE_BAR_HEIGHT,
+    TITLE_BAR_STYLESHEET,
+    ResizableContainer,
+    TitleBar,
+)
 from app.ui.sidebar import Sidebar
 from app.ui.theme import DARK, ICON_COLORS, LIGHT, apply_theme
 
@@ -223,12 +239,31 @@ QLabel#pageSubtitle {
 """
 
 
+WINDOW_OPACITY = 0.92
+TOP_MARGIN = 16
+MIN_WIDTH = 420
+MAX_WIDTH = 900
+COLLAPSED_HEIGHT = TITLE_BAR_HEIGHT + 2 * RESIZE_MARGIN  # só a barra de título, com as margens
+COLLAPSE_DELAY_MS = 400
+ANIMATION_MS = 180
+
+
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Dados do Amazonas")
-        self.setWindowFlag(Qt.FramelessWindowHint, True)
-        self.resize(900, 600)
+        self.setWindowFlags(Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint)
+        self.setWindowOpacity(WINDOW_OPACITY)
+
+        # Recolhida (estreita) por padrão; expande ao passar o mouse e recolhe ao sair.
+        self._expanded = False
+        self._animation = QPropertyAnimation(self, b"geometry", self)
+        self._animation.setDuration(ANIMATION_MS)
+        self._animation.setEasingCurve(QEasingCurve.OutCubic)
+        self._collapse_timer = QTimer(self)
+        self._collapse_timer.setSingleShot(True)
+        self._collapse_timer.setInterval(COLLAPSE_DELAY_MS)
+        self._collapse_timer.timeout.connect(self._collapse_if_mouse_outside)
         arrow_down = Path(__file__).resolve().parents[2] / "arrow_down.png"
         self._stylesheet = (
             STYLESHEET.replace("ARROW_DOWN_PATH", arrow_down.as_posix()) + TITLE_BAR_STYLESHEET
@@ -244,11 +279,22 @@ class MainWindow(QMainWindow):
         self._title_bar = TitleBar(self, self.windowTitle())
         root.addWidget(self._title_bar)
 
-        body = QWidget()
-        layout = QHBoxLayout(body)
+        self._body = QWidget()
+        layout = QHBoxLayout(self._body)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
-        root.addWidget(body, 1)
+
+        # Recorte do corpo: ao recolher a janela, o corpo é cortado em vez de espremido.
+        clip = QScrollArea()
+        clip.setWidgetResizable(True)
+        clip.setFrameShape(QFrame.NoFrame)
+        clip.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Ignored)  # pode ficar com altura 0
+        clip.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        clip.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        clip.viewport().setAutoFillBackground(False)
+        clip.setWidget(self._body)
+        self._body.setAutoFillBackground(False)  # o setWidget liga o preenchimento cinza padrão
+        root.addWidget(clip, 1)
 
         self.sidebar = Sidebar()
         self.sidebar.theme_toggle_requested.connect(self._toggle_theme)
@@ -259,6 +305,44 @@ class MainWindow(QMainWindow):
         if self._theme not in (DARK, LIGHT):
             self._theme = DARK
         self._apply_theme()
+
+        # Mínimo explícito (o layout não força o do conteúdo) + corpo com altura fixa: ao recolher,
+        # a janela encolhe até a barra de título e o corpo é cortado em vez de espremido.
+        self.setMinimumSize(MIN_WIDTH, COLLAPSED_HEIGHT)
+        full_height = self._target_rect(expanded=True).height()
+        self._body.setMinimumHeight(full_height - TITLE_BAR_HEIGHT - 2 * RESIZE_MARGIN)
+        self.setGeometry(self._target_rect(expanded=False))
+
+    def _target_rect(self, expanded: bool) -> QRect:
+        """Retângulo centralizado e colado ao topo. Recolhida: só a barra de título; expandida: altura cheia."""
+        area = (self.screen() or QGuiApplication.primaryScreen()).availableGeometry()
+        width = max(MIN_WIDTH, min(MAX_WIDTH, int(area.width() * 0.6)))
+        height = min(600, int(area.height() * 0.8)) if expanded else COLLAPSED_HEIGHT
+        return QRect(area.x() + (area.width() - width) // 2, area.y() + TOP_MARGIN, width, height)
+
+    def _set_expanded(self, expanded: bool) -> None:
+        if self.isMaximized() or expanded == self._expanded:
+            return
+        self._expanded = expanded
+        self._animation.stop()
+        self._animation.setStartValue(self.geometry())
+        self._animation.setEndValue(self._target_rect(expanded))
+        self._animation.start()
+
+    def enterEvent(self, event) -> None:
+        self._collapse_timer.stop()
+        self._set_expanded(True)
+        super().enterEvent(event)
+
+    def leaveEvent(self, event) -> None:
+        self._collapse_timer.start()
+        super().leaveEvent(event)
+
+    def _collapse_if_mouse_outside(self) -> None:
+        if QApplication.mouseButtons() != Qt.NoButton:  # arrastando ou redimensionando
+            self._collapse_timer.start()
+        elif not self.geometry().contains(QCursor.pos()):
+            self._set_expanded(False)
 
     def changeEvent(self, event) -> None:
         super().changeEvent(event)
