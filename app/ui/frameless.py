@@ -8,9 +8,15 @@ TITLE_BAR_HEIGHT = 32
 TITLE_BAR_STYLESHEET = """
 QWidget#content {
     border: 1px solid #3a4552;
+    border-radius: 10px;
+}
+QWidget#content[snapped="true"] {
+    border-radius: 0;
 }
 QFrame#titleBar {
     background-color: #1a2027;
+    border-top-left-radius: 6px;
+    border-top-right-radius: 6px;
 }
 QLabel#titleBarLabel {
     color: #9aa5b1;
@@ -29,6 +35,7 @@ QPushButton#titleButton:hover {
 QPushButton#titleCloseButton:hover {
     background-color: #c42b1c;
     color: #fefefe;
+    border-top-right-radius: 6px;
 }
 """
 
@@ -183,3 +190,6 @@ class ResizableContainer(QWidget):
     def set_maximized(self, maximized: bool) -> None:
         margin = 0 if maximized else RESIZE_MARGIN
         self.layout().setContentsMargins(margin, margin, margin, margin)
+        self.setProperty("snapped", maximized)  # o QSS tira o arredondamento ao maximizar
+        self.style().unpolish(self)
+        self.style().polish(self)

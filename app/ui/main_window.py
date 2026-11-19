@@ -25,11 +25,15 @@ from app.ui.sidebar import Sidebar
 from app.ui.theme import DARK, ICON_COLORS, LIGHT, apply_theme
 
 STYLESHEET = """
-QMainWindow, QWidget#content {
+QMainWindow {
+    background: transparent;
+}
+QWidget#content {
     background-color: #212830;
 }
 QFrame#sidebar {
     background-color: #1a2027;
+    border-bottom-left-radius: 6px;
 }
 QPushButton#sidebarButton {
     color: #d6dbe0;
@@ -244,6 +248,7 @@ TOP_MARGIN = 16
 MIN_WIDTH = 420
 MAX_WIDTH = 900
 COLLAPSED_HEIGHT = TITLE_BAR_HEIGHT + 2 * RESIZE_MARGIN  # só a barra de título, com as margens
+EXPAND_DELAY_MS = 450
 COLLAPSE_DELAY_MS = 400
 ANIMATION_MS = 180
 
@@ -253,6 +258,7 @@ class MainWindow(QMainWindow):
         super().__init__()
         self.setWindowTitle("Dados do Amazonas")
         self.setWindowFlags(Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint)
+        self.setAttribute(Qt.WA_TranslucentBackground, True)  # cantos arredondados
         self.setWindowOpacity(WINDOW_OPACITY)
 
         # Recolhida (estreita) por padrão; expande ao passar o mouse e recolhe ao sair.
@@ -264,6 +270,11 @@ class MainWindow(QMainWindow):
         self._collapse_timer.setSingleShot(True)
         self._collapse_timer.setInterval(COLLAPSE_DELAY_MS)
         self._collapse_timer.timeout.connect(self._collapse_if_mouse_outside)
+        # Só expande se o mouse ficar um instante em cima: passar rápido não "assusta".
+        self._expand_timer = QTimer(self)
+        self._expand_timer.setSingleShot(True)
+        self._expand_timer.setInterval(EXPAND_DELAY_MS)
+        self._expand_timer.timeout.connect(self._expand_if_mouse_inside)
         arrow_down = Path(__file__).resolve().parents[2] / "arrow_down.png"
         self._stylesheet = (
             STYLESHEET.replace("ARROW_DOWN_PATH", arrow_down.as_posix()) + TITLE_BAR_STYLESHEET
@@ -331,12 +342,20 @@ class MainWindow(QMainWindow):
 
     def enterEvent(self, event) -> None:
         self._collapse_timer.stop()
-        self._set_expanded(True)
+        if self._expanded:
+            self._expand_timer.stop()
+        else:
+            self._expand_timer.start()
         super().enterEvent(event)
 
     def leaveEvent(self, event) -> None:
+        self._expand_timer.stop()
         self._collapse_timer.start()
         super().leaveEvent(event)
+
+    def _expand_if_mouse_inside(self) -> None:
+        if self.geometry().contains(QCursor.pos()):
+            self._set_expanded(True)
 
     def _collapse_if_mouse_outside(self) -> None:
         if QApplication.mouseButtons() != Qt.NoButton:  # arrastando ou redimensionando
