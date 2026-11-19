@@ -1,10 +1,12 @@
 from pathlib import Path
 
-from PySide6.QtWidgets import QHBoxLayout, QMainWindow, QWidget
+from PySide6.QtCore import QEvent, Qt
+from PySide6.QtWidgets import QHBoxLayout, QMainWindow, QVBoxLayout, QWidget
 
 from app.core import settings
+from app.ui.frameless import RESIZE_MARGIN, TITLE_BAR_STYLESHEET, ResizableContainer, TitleBar
 from app.ui.sidebar import Sidebar
-from app.ui.theme import DARK, LIGHT, apply_theme
+from app.ui.theme import DARK, ICON_COLORS, LIGHT, apply_theme
 
 STYLESHEET = """
 QMainWindow, QWidget#content {
@@ -225,17 +227,28 @@ class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Dados do Amazonas")
+        self.setWindowFlag(Qt.FramelessWindowHint, True)
         self.resize(900, 600)
         arrow_down = Path(__file__).resolve().parents[2] / "arrow_down.png"
-        self._stylesheet = STYLESHEET.replace("ARROW_DOWN_PATH", arrow_down.as_posix())
+        self._stylesheet = (
+            STYLESHEET.replace("ARROW_DOWN_PATH", arrow_down.as_posix()) + TITLE_BAR_STYLESHEET
+        )
 
-        central = QWidget()
-        central.setObjectName("content")
-        self.setCentralWidget(central)
+        self._container = ResizableContainer()
+        self.setCentralWidget(self._container)
 
-        layout = QHBoxLayout(central)
+        root = QVBoxLayout(self._container)
+        root.setContentsMargins(RESIZE_MARGIN, RESIZE_MARGIN, RESIZE_MARGIN, RESIZE_MARGIN)
+        root.setSpacing(0)
+
+        self._title_bar = TitleBar(self, self.windowTitle())
+        root.addWidget(self._title_bar)
+
+        body = QWidget()
+        layout = QHBoxLayout(body)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
+        root.addWidget(body, 1)
 
         self.sidebar = Sidebar()
         self.sidebar.theme_toggle_requested.connect(self._toggle_theme)
@@ -247,9 +260,17 @@ class MainWindow(QMainWindow):
             self._theme = DARK
         self._apply_theme()
 
+    def changeEvent(self, event) -> None:
+        super().changeEvent(event)
+        if event.type() == QEvent.WindowStateChange:
+            maximized = self.isMaximized()
+            self._container.set_maximized(maximized)
+            self._title_bar.set_maximized(maximized)
+
     def _apply_theme(self) -> None:
         self.setStyleSheet(apply_theme(self._stylesheet, self._theme))
         self.sidebar.set_theme(self._theme)
+        self._title_bar.set_icon_color(ICON_COLORS[self._theme])
 
     def _toggle_theme(self) -> None:
         self._theme = DARK if self._theme == LIGHT else LIGHT
